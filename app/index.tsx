@@ -1,159 +1,157 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from "react-native"
-import * as WebBrowser from "expo-web-browser"
-
-import { useOAuth, useSignIn, useSignUp} from '@clerk/clerk-expo';
-
+import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, SafeAreaView, StatusBar } from "react-native"
+import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
-import { Redirect, router} from "expo-router"
-import { useNavigation } from "@react-navigation/native";
+import { COLORS } from "@/config/config"
 import { images } from "@/constants/images"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { router } from "expo-router"
 
-import { makeRedirectUri } from "expo-auth-session"
+const Welcome = () => {
+  const navigation = useNavigation()
 
-const { width } = Dimensions.get("window")
-
-WebBrowser.maybeCompleteAuthSession()
-
-export default function SignIn() {
-
-  /* const {isLoaded , signUp} = useSignUp()
-  const { signIn } = useSignIn()
-  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" })
-  const navigation = useNavigation() */
-
-  const redirectUrl = makeRedirectUri({
-    scheme: process.env.EXPO_PUBLIC_APP_SCHEME || "chitamrita",
-  })
-
- /* const handleGoogleSignIn = async () => {
-    if (!isLoaded) {
-      return
-    }
-
-    try {
-      const { createdSessionId, setActive } = await startOAuthFlow({
-        redirectUrl,
-      })
-
-      if (createdSessionId) {
-        await setActive({ session: createdSessionId })
-        navigation.navigate("Chat" as never)
-      }
-    } catch (err) {
-      console.error("OAuth error", err)
-    }
+  const handleSignUp = () => {
+    router.push("/(auth)/sign-up")
   }
-    */
 
-
- const handleSignIn = () => {
- }
 
   return (
-    <SafeAreaView>
     <View style={styles.container}>
-      <View style={styles.imageContainer}>
-        <Image
-          source={images.illustration}
-          style={styles.image}
-          resizeMode="contain"
-        />
-      </View>
+      <StatusBar barStyle="light-content" />
+      <ImageBackground
+        source={images.background}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logo} />
+            </View>
+            <Text style={styles.appName}>Chitamrita</Text>
+            <View style={styles.authButtons}>
+              <TouchableOpacity style={styles.authButton} onPress={handleSignUp} >
+                <Text style={styles.authButtonText}>sign up</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.authButton}>
+                <Text style={styles.authButtonText}>log in</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-      <Text style={styles.welcomeText}>WELCOME TO VIBEX</Text>
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.getStartedButton} >
+              <Text style={styles.getStartedText}>Swipe to get started</Text>
+              <Ionicons name="arrow-forward-circle" size={24} color={COLORS.text} />
+            </TouchableOpacity>
 
-      <View style={styles.taglineContainer}>
-        <Text style={styles.purpleText}>Secure, Private, </Text>
-        <Text style={styles.blackText}>Connected</Text>
-      </View>
-
-      <Text style={styles.signupText}>SignUp to chitamrita</Text>
-      <TouchableOpacity style={styles.googleButton} onPress={handleSignIn} >
-        <Ionicons name="logo-google" size={20} color="#000" />
-        <Text style={styles.buttonText}>Sign Up with Google</Text>
-      </TouchableOpacity>
-
-      <View style={styles.paginationContainer}>
-        <View style={styles.paginationIndicator} />
-      </View>
+            <View style={styles.bottomBar}>
+              <View style={styles.languageSelector}>
+                <Text style={styles.languageText}>english</Text>
+                <Ionicons name="globe-outline" size={20} color={COLORS.text} />
+              </View>
+              <TouchableOpacity style={styles.bottomButton}>
+                <Text style={styles.bottomButtonText}>premium</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bottomButton} onPress={() => router.push("/(auth)/welcome")}>
+                <Text style={styles.bottomButtonText}>support</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     </View>
-    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: COLORS.background,
+  },
+  backgroundImage: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  },
+  header: {
     paddingHorizontal: 20,
+    paddingTop: 20,
   },
-  imageContainer: {
-    width: width * 0.8,
-    height: width * 0.8,
-    marginBottom: 20,
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-  },
-  welcomeText: {
-    fontSize: 14,
-    color: "#888",
-    marginBottom: 10,
-    letterSpacing: 1,
-  },
-  taglineContainer: {
-    flexDirection: "row",
-    marginBottom: 20,
-  },
-  purpleText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#9370DB",
-  },
-  blackText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#000",
-  },
-  signupText: {
-    fontSize: 16,
-    color: "#555",
-    marginBottom: 20,
-  },
-  googleButton: {
-    flexDirection: "row",
+  logoContainer: {
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
+    marginBottom: 10,
+  },
+  logo: {
+    width: 50,
+    height: 50,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+  },
+  appName: {
+    color: COLORS.primary,
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  authButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: -25,
+  },
+  authButton: {
+    marginLeft: 15,
+  },
+  authButtonText: {
+    color: COLORS.text,
+    fontSize: 16,
+  },
+  footer: {
+    flex: 1,
+    justifyContent: "flex-end",
+    padding: 20,
+  },
+  getStartedButton: {
+    backgroundColor: "rgba(168, 85, 247, 0.8)",
     borderRadius: 30,
     paddingVertical: 15,
     paddingHorizontal: 20,
-    width: "100%",
-    marginBottom: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  buttonText: {
+  getStartedText: {
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: "500",
-    marginLeft: 10,
+    marginRight: 10,
   },
-  paginationContainer: {
-    position: "absolute",
-    bottom: 40,
+  bottomBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  paginationIndicator: {
-    width: 50,
-    height: 4,
-    backgroundColor: "#000",
-    borderRadius: 2,
+  languageSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(168, 85, 247, 0.8)",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+  },
+  languageText: {
+    color: COLORS.text,
+    marginRight: 5,
+  },
+  bottomButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+  },
+  bottomButtonText: {
+    color: COLORS.text,
   },
 })
+
+export default Welcome
+

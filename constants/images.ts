@@ -1,5 +1,5 @@
-import illustration from '@/assets/images/illustration.jpg';
+import background from '@/assets/images/background.jpg';
 
 export const images = {
-    illustration
+    background
 }
