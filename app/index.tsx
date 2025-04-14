@@ -1,17 +1,40 @@
+"use client"
+
+import { useEffect } from "react"
+
 import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, SafeAreaView, StatusBar } from "react-native"
-import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
+import { useNavigation } from "@react-navigation/native"
+import { useAuth } from "@clerk/clerk-expo"
 import { COLORS } from "@/config/config"
 import { images } from "@/constants/images"
 import { router } from "expo-router"
 
-const Welcome = () => {
+const LandingScreen = () => {
   const navigation = useNavigation()
+  const { isSignedIn } = useAuth()
+
+  // If user is already signed in, redirect to main app
+  useEffect(() => {
+    if (isSignedIn) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Main" }],
+      })
+    }
+  }, [isSignedIn])
 
   const handleSignUp = () => {
     router.push("/(auth)/sign-up")
   }
 
+  const handleLogin = () => {
+    router.push("/(auth)/LoginScreen")
+  }
+
+  const viewTerms = () => {
+    router.replace("/(auth)/get-started")
+  }
 
   return (
     <View style={styles.container}>
@@ -28,17 +51,17 @@ const Welcome = () => {
             </View>
             <Text style={styles.appName}>Chitamrita</Text>
             <View style={styles.authButtons}>
-              <TouchableOpacity style={styles.authButton} onPress={handleSignUp} >
+              <TouchableOpacity style={styles.authButton} onPress={handleSignUp}>
                 <Text style={styles.authButtonText}>sign up</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.authButton}>
+              <TouchableOpacity style={styles.authButton} onPress={handleLogin}>
                 <Text style={styles.authButtonText}>log in</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.getStartedButton} >
+            <TouchableOpacity style={styles.getStartedButton} onPress={viewTerms}>
               <Text style={styles.getStartedText}>Swipe to get started</Text>
               <Ionicons name="arrow-forward-circle" size={24} color={COLORS.text} />
             </TouchableOpacity>
@@ -51,7 +74,7 @@ const Welcome = () => {
               <TouchableOpacity style={styles.bottomButton}>
                 <Text style={styles.bottomButtonText}>premium</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.bottomButton} onPress={() => router.push("/(auth)/welcome")}>
+              <TouchableOpacity style={styles.bottomButton}>
                 <Text style={styles.bottomButtonText}>support</Text>
               </TouchableOpacity>
             </View>
@@ -153,5 +176,4 @@ const styles = StyleSheet.create({
   },
 })
 
-export default Welcome
-
+export default LandingScreen

@@ -15,19 +15,27 @@ import {
 } from "react-native"
 import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
-import { useAuth } from "@/context/AuthContext"
+import { useSignIn } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
+import { router } from "expo-router"
 
 const LoginScreen = () => {
   const navigation = useNavigation()
-  const { login, isLoading } = useAuth()
+  const { isLoaded, signIn, setActive } = useSignIn()
 
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
+  const handleSignUp = () => {
+    router.push("/(auth)/sign-up")
+  }
+
   const handleLogin = async () => {
+    if (!isLoaded) return
+
     if (!identifier || !password) {
       setError("All fields are required")
       return
@@ -35,14 +43,39 @@ const LoginScreen = () => {
 
     try {
       setError("")
-      await login(identifier, password)
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Main" }],
+      setIsLoading(true)
+
+      // Determine if the identifier is an email or username
+      const isEmail = identifier.includes("@")
+
+      // Start the sign-in process with Clerk
+      const signInAttempt = await signIn.create({
+        identifier: identifier,
+        password,
       })
+
+      // Check if the sign-in was successful
+      if (signInAttempt.status === "complete") {
+        // Set the active session
+        await setActive({ session: signInAttempt.createdSessionId })
+
+        // Navigate to main app
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Main" }],
+        })
+      } else if (signInAttempt.status === "needs_verification") {
+        // Handle verification if needed
+        navigation.navigate("Verification", {
+          email: identifier,
+          verificationStep: "login",
+        })
+      }
     } catch (err) {
-      setError("Invalid credentials. Please try again.")
-      console.error(err)
+      console.error("Error during sign in:", err)
+      setError(err.errors?.[0]?.message || "Invalid credentials. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -66,6 +99,9 @@ const LoginScreen = () => {
                 style={styles.input}
                 placeholder="Phone number, username, or email"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                value={identifier}
+                onChangeText={setIdentifier}
+                autoCapitalize= "255,255,0.6"
                 value={identifier}
                 onChangeText={setIdentifier}
                 autoCapitalize="none"
@@ -93,13 +129,13 @@ const LoginScreen = () => {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading}>
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading || !isLoaded}>
               {isLoading ? <ActivityIndicator color={COLORS.text} /> : <Text style={styles.loginButtonText}>Done</Text>}
             </TouchableOpacity>
 
             <View style={styles.signupLinkContainer}>
               <Text style={styles.signupLinkText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+              <TouchableOpacity onPress={handleSignUp}>
                 <Text style={styles.signupLink}>Sign up</Text>
               </TouchableOpacity>
             </View>
@@ -159,7 +195,6 @@ const styles = StyleSheet.create({
   form: {
     width: "100%",
   },
-  
   inputContainer: {
     ...COMMON_STYLES.inputContainer,
     flexDirection: "row",
@@ -202,4 +237,3 @@ const styles = StyleSheet.create({
 })
 
 export default LoginScreen
-

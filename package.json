@@ -15,7 +15,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
-    "@clerk/clerk-expo": "^2.8.5",
+    "@clerk/clerk-expo": "^2.9.11",
     "@clerk/types": "^4.48.0",
     "@expo/vector-icons": "^14.0.4",
     "@react-native-async-storage/async-storage": "^2.1.2",
@@ -25,6 +25,7 @@
     "axios": "^1.8.4",
     "expo": "~52.0.37",
     "expo-auth-session": "~6.0.3",
+    "expo-av": "^15.0.2",
     "expo-blur": "~14.0.3",
     "expo-constants": "~17.0.8",
     "expo-font": "~13.0.4",

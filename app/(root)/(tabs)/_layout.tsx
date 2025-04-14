@@ -1,39 +1,54 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import { createNativeStackNavigator } from "@react-navigation/native-stack"
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
+import { Ionicons } from "@expo/vector-icons"
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import HomeScreen from "./HomeScreen"
+import SearchScreen from "@/app/(auth)/SearchScreen"
+import ChatListScreen from "@/app/(auth)/ChatListScreen"
+import ProfileScreen from "@/app/(auth)/ProfileScreen"
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+const Stack = createNativeStackNavigator()
+const Tab = createBottomTabNavigator()
 
+const MainTabs = () => {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName
+
+          if (route.name === "Home") {
+            iconName = focused ? "home" : "home-outline"
+          } else if (route.name === "Search") {
+            iconName = focused ? "search" : "search-outline"
+          } else if (route.name === "Add") {
+            iconName = focused ? "add-circle" : "add-circle-outline"
+          } else if (route.name === "Chats") {
+            iconName = focused ? "chatbubble" : "chatbubble-outline"
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline"
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />
+        },
+        tabBarActiveTintColor: "#a855f7",
+        tabBarInactiveTintColor: "gray",
+        tabBarStyle: {
+          backgroundColor: "#121212",
+          borderTopWidth: 0,
+          elevation: 0,
+          height: 60,
+          paddingBottom: 10,
+        },
+        tabBarShowLabel: false,
         headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="chat"
-        options={{
-          title: 'Chat',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-    </Tabs>
-  );
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Add" component={HomeScreen} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Chats" component={ChatListScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  )
 }

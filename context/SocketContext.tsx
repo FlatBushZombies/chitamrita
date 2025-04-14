@@ -3,7 +3,8 @@
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { io, type Socket } from "socket.io-client"
-import { useAuth } from "./AuthContext"
+import { useAuth } from "@clerk/clerk-expo"
+import { useUserProfile } from "./userContext"
 import { API_URL } from "@/config/config"
 
 interface SocketContextType {
@@ -18,10 +19,11 @@ const SocketContext = createContext<SocketContextType | undefined>(undefined)
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const { token, user } = useAuth()
+  const { getToken, isSignedIn } = useAuth()
+  const { userProfile } = useUserProfile()
 
   useEffect(() => {
-    if (!token || !user) {
+    if (!isSignedIn || !userProfile) {
       // Disconnect socket if user logs out
       if (socket) {
         socket.disconnect()
@@ -31,42 +33,53 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return
     }
 
-    // Initialize socket connection
-    const socketInstance = io(API_URL, {
-      auth: {
-        token,
-      },
-      transports: ["websocket"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
+    const initializeSocket = async () => {
+      try {
+        // Get token for socket authentication
+        const token = await getToken()
 
-    socketInstance.on("connect", () => {
-      console.log("Socket connected")
-      setIsConnected(true)
-    })
+        // Initialize socket connection
+        const socketInstance = io(API_URL, {
+          auth: {
+            token,
+          },
+          transports: ["websocket"],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        })
 
-    socketInstance.on("disconnect", () => {
-      console.log("Socket disconnected")
-      setIsConnected(false)
-    })
+        socketInstance.on("connect", () => {
+          console.log("Socket connected")
+          setIsConnected(true)
+        })
 
-    socketInstance.on("connect_error", (error) => {
-      console.error("Socket connection error:", error)
-      setIsConnected(false)
-    })
+        socketInstance.on("disconnect", () => {
+          console.log("Socket disconnected")
+          setIsConnected(false)
+        })
 
-    setSocket(socketInstance)
+        socketInstance.on("connect_error", (error) => {
+          console.error("Socket connection error:", error)
+          setIsConnected(false)
+        })
 
-    // Cleanup on unmount
-    return () => {
-      socketInstance.disconnect()
+        setSocket(socketInstance)
+
+        // Cleanup on unmount
+        return () => {
+          socketInstance.disconnect()
+        }
+      } catch (error) {
+        console.error("Failed to initialize socket:", error)
+      }
     }
-  }, [token, user])
+
+    initializeSocket()
+  }, [isSignedIn, userProfile])
 
   const sendMessage = (receiverId: string, content: string, type = "text") => {
-    if (socket && isConnected) {
+    if (socket && isConnected && userProfile) {
       socket.emit("send_message", {
         receiverId,
         content,
@@ -78,10 +91,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   const markMessageAsRead = (messageId: string) => {
-    if (socket && isConnected && user) {
+    if (socket && isConnected && userProfile) {
       socket.emit("message_read", {
         messageId,
-        readBy: user.id,
       })
     } else {
       console.error("Cannot mark message as read: Socket not connected")
@@ -105,4 +117,3 @@ export const useSocket = () => {
   }
   return context
 }
-

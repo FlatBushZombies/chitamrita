@@ -15,21 +15,24 @@ import {
 } from "react-native"
 import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
-import { useAuth } from "@/context/AuthContext"
+import { useSignUp } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
 
 const SignUpScreen = () => {
   const navigation = useNavigation()
-  const { signup, isLoading } = useAuth()
+  const { isLoaded, signUp, setActive } = useSignUp()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [username, setUsername] = useState("")
   const [fullName, setFullName] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
   const handleSignUp = async () => {
+    if (!isLoaded) return
+
     if (!email || !password || !username || !fullName) {
       setError("All fields are required")
       return
@@ -37,20 +40,40 @@ const SignUpScreen = () => {
 
     try {
       setError("")
-      await signup(email, password, username, fullName)
-      navigation.navigate("Verification", { email })
+      setIsLoading(true)
+
+      // Start the sign-up process with Clerk
+      await signUp.create({
+        emailAddress: email,
+        password,
+        username,
+      })
+
+      // Set the user's name
+      await signUp.update({
+        firstName: fullName.split(" ")[0],
+        lastName: fullName.split(" ").slice(1).join(" "),
+      })
+
+      // Prepare verification
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
+      // Navigate to verification screen
+      navigation.navigate("Verification", {
+        email,
+        verificationStep: "email",
+      })
     } catch (err) {
-      setError("Failed to create account. Please try again.")
-      console.error(err)
+      console.error("Error during sign up:", err)
+      setError(err.errors?.[0]?.message || "Failed to create account. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoid}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoid}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.logoContainer}>
             <View style={styles.logo} />
@@ -83,19 +106,10 @@ const SignUpScreen = () => {
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={password}
                 onChangeText={setPassword}
-                value={password}
-                onChangeText={setPassword}
                 secureTextEntry={!showPassword}
               />
-              <TouchableOpacity 
-                style={styles.inputIcon} 
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons 
-                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                  size={20} 
-                  color={COLORS.text} 
-                />
+              <TouchableOpacity style={styles.inputIcon} onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.text} />
               </TouchableOpacity>
             </View>
 
@@ -124,16 +138,12 @@ const SignUpScreen = () => {
 
             <View style={styles.loginLinkContainer}>
               <Text style={styles.loginLinkText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
                 <Text style={styles.loginLink}>Log in</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.signupButton}
-              onPress={handleSignUp}
-              disabled={isLoading}
-            >
+            <TouchableOpacity style={styles.signupButton} onPress={handleSignUp} disabled={isLoading || !isLoaded}>
               {isLoading ? (
                 <ActivityIndicator color={COLORS.text} />
               ) : (
@@ -230,4 +240,3 @@ const styles = StyleSheet.create({
 })
 
 export default SignUpScreen
-

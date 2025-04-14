@@ -13,19 +13,21 @@ import {
 } from "react-native"
 import { useNavigation, useRoute } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
-import { useAuth } from "@/context/AuthContext"
+import { useSignIn, useSignUp } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
 
 const VerificationScreen = () => {
   const navigation = useNavigation()
   const route = useRoute()
-  const { verifyCode, isLoading } = useAuth()
+  const { email, verificationStep } = route.params || {}
 
-  const { email, isReset = false } = route.params || {}
+  const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp()
+  const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn()
 
-  const [code, setCode] = useState(["", "", "", ""])
+  const [code, setCode] = useState(["", "", "", "", "", ""])
   const [displayCode, setDisplayCode] = useState("")
   const [error, setError] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const [timer, setTimer] = useState(60)
 
   const inputRefs = useRef([])
@@ -45,11 +47,11 @@ const VerificationScreen = () => {
   const handleCodeChange = (text, index) => {
     if (text.length > 1) {
       // Handle paste of full code
-      const pastedCode = text.slice(0, 4).split("")
+      const pastedCode = text.slice(0, 6).split("")
       const newCode = [...code]
 
       for (let i = 0; i < pastedCode.length; i++) {
-        if (index + i < 4) {
+        if (index + i < 6) {
           newCode[index + i] = pastedCode[i]
         }
       }
@@ -57,7 +59,7 @@ const VerificationScreen = () => {
       setCode(newCode)
 
       // Focus on last input or dismiss keyboard if complete
-      if (index + pastedCode.length >= 4) {
+      if (index + pastedCode.length >= 6) {
         Keyboard.dismiss()
       } else if (inputRefs.current[index + pastedCode.length]) {
         inputRefs.current[index + pastedCode.length].focus()
@@ -69,7 +71,7 @@ const VerificationScreen = () => {
       setCode(newCode)
 
       // Auto-advance to next input
-      if (text !== "" && index < 3 && inputRefs.current[index + 1]) {
+      if (text !== "" && index < 5 && inputRefs.current[index + 1]) {
         inputRefs.current[index + 1].focus()
       }
     }
@@ -88,42 +90,92 @@ const VerificationScreen = () => {
   const handleVerify = async () => {
     const fullCode = code.join("")
 
-    if (fullCode.length !== 4) {
+    if (fullCode.length !== 6) {
       setError("Please enter the complete verification code")
       return
     }
 
     try {
       setError("")
-      await verifyCode(email, fullCode)
+      setIsLoading(true)
 
-      if (isReset) {
+      if (verificationStep === "email") {
+        // Handle email verification during signup
+        if (!isSignUpLoaded) return
+
+        const completeSignUp = await signUp.attemptEmailAddressVerification({
+          code: fullCode,
+        })
+
+        if (completeSignUp.status === "complete") {
+          // Set the active session
+          await setSignUpActive({ session: completeSignUp.createdSessionId })
+
+          // Navigate to main app
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Main" }],
+          })
+        }
+      } else if (verificationStep === "login") {
+        // Handle verification during login
+        if (!isSignInLoaded) return
+
+        const completeSignIn = await signIn.attemptFirstFactor({
+          strategy: "email_code",
+          code: fullCode,
+        })
+
+        if (completeSignIn.status === "complete") {
+          // Set the active session
+          await setSignInActive({ session: completeSignIn.createdSessionId })
+
+          // Navigate to main app
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Main" }],
+          })
+        }
+      } else if (verificationStep === "reset") {
+        // Handle password reset verification
+        if (!isSignInLoaded) return
+
         // Navigate to reset password screen
         navigation.navigate("ResetPassword", { email, code: fullCode })
-      } else {
-        // Navigate to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Main" }],
-        })
       }
     } catch (err) {
-      setError("Invalid verification code. Please try again.")
-      console.error(err)
+      console.error("Verification error:", err)
+      setError(err.errors?.[0]?.message || "Invalid verification code. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const handleResendCode = async () => {
     try {
-      // In a real app, call the API to resend code
+      setIsLoading(true)
+
+      if (verificationStep === "email") {
+        if (!isSignUpLoaded) return
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+      } else if (verificationStep === "login" || verificationStep === "reset") {
+        if (!isSignInLoaded) return
+        await signIn.prepareFirstFactor({
+          strategy: "email_code",
+          identifier: email,
+        })
+      }
+
       setTimer(60)
       setError("")
       // Reset code fields
-      setCode(["", "", "", ""])
+      setCode(["", "", "", "", "", ""])
       inputRefs.current[0]?.focus()
     } catch (err) {
+      console.error("Failed to resend code:", err)
       setError("Failed to resend code. Please try again.")
-      console.error(err)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -137,7 +189,7 @@ const VerificationScreen = () => {
       setCode(newCode)
 
       // Focus next input or dismiss keyboard if complete
-      if (emptyIndex < 3) {
+      if (emptyIndex < 5) {
         inputRefs.current[emptyIndex + 1]?.focus()
       } else {
         Keyboard.dismiss()
@@ -150,7 +202,7 @@ const VerificationScreen = () => {
     const lastFilledIndex = [...code].reverse().findIndex((c) => c !== "")
 
     if (lastFilledIndex !== -1) {
-      const actualIndex = 3 - lastFilledIndex
+      const actualIndex = 5 - lastFilledIndex
       const newCode = [...code]
       newCode[actualIndex] = ""
       setCode(newCode)
@@ -199,7 +251,7 @@ const VerificationScreen = () => {
           {isLoading ? <ActivityIndicator color={COLORS.text} /> : <Text style={styles.verifyButtonText}>Verify</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.resendButton} onPress={handleResendCode} disabled={timer > 0}>
+        <TouchableOpacity style={styles.resendButton} onPress={handleResendCode} disabled={timer > 0 || isLoading}>
           <Text style={styles.resendButtonText}>{timer > 0 ? `Resend Code (${timer}s)` : "Resend Code"}</Text>
         </TouchableOpacity>
 
@@ -341,4 +393,3 @@ const styles = StyleSheet.create({
 })
 
 export default VerificationScreen
-

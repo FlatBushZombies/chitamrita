@@ -14,7 +14,7 @@ import {
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import axios from "axios"
-import { API_URL,  COLORS } from "@/config/config"
+import { API_URL, COLORS } from "@/config/config"
 import { useAuth } from "@/context/AuthContext"
 
 interface User {
@@ -103,10 +103,7 @@ const SearchScreen = () => {
 
   const renderUserItem = ({ item }: { item: User }) => (
     <View style={styles.userItem}>
-      <Image
-        source={item.profilePic ? { uri: item.profilePic } : require("../assets/default-avatar.png")}
-        style={styles.userAvatar}
-      />
+      
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{item.fullName}</Text>
       </View>
@@ -268,4 +265,3 @@ const styles = StyleSheet.create({
 })
 
 export default SearchScreen
-
