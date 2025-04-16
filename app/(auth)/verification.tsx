@@ -141,7 +141,7 @@ const VerificationScreen = () => {
         if (!isSignInLoaded) return
 
         // Navigate to reset password screen
-        navigation.navigate("ResetPassword", { email, code: fullCode })
+        navigation.navigate("/", { email, code: fullCode })
       }
     } catch (err) {
       console.error("Verification error:", err)

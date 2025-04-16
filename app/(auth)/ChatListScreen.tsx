@@ -66,8 +66,12 @@ const ChatListScreen = () => {
   }
 
   const navigateToChat = (userId: string, username: string, profilePic?: string) => {
-    router.replace("/(auth)/ChatListScreen", { userId, username, profilePic })
-  }
+    router.push({
+      pathname: "/(auth)/ChatListScreen",
+      params: { userId, username, profilePic: profilePic || '' }
+    });
+  };
+
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)

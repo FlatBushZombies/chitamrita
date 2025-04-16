@@ -7,10 +7,10 @@ import SearchScreen from "@/app/(auth)/SearchScreen"
 import ChatListScreen from "@/app/(auth)/ChatListScreen"
 import ProfileScreen from "@/app/(auth)/ProfileScreen"
 
-const Stack = createNativeStackNavigator()
-const Tab = createBottomTabNavigator()
+export const Stack = createNativeStackNavigator()
+export const Tab = createBottomTabNavigator()
 
-const MainTabs = () => {
+export const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({

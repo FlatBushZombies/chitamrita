@@ -11,7 +11,7 @@ const TermsScreen = () => {
   const [agreed, setAgreed] = useState(false)
 
   const handleAgree = () => {
-    router.replace("/(root)/(tabs)/chat")
+    router.replace("/(auth)/sign-up")
   }
 
   const handleDisagree = () => {

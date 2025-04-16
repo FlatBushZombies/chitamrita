@@ -62,7 +62,7 @@ const ChatScreen = () => {
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Image
-            source={profilePic ? { uri: profilePic } : require("../assets/default-avatar.png")}
+            source={profilePic ? { uri: profilePic } : require("../../assets/icon.png")}
             style={styles.headerAvatar}
           />
           <Text style={styles.headerTitle}>{username}</Text>
@@ -325,7 +325,7 @@ const ChatScreen = () => {
       <View style={[styles.messageContainer, isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer]}>
         {!isOwnMessage && (
           <Image
-            source={profilePic ? { uri: profilePic } : require("../assets/default-avatar.png")}
+            source={profilePic ? { uri: profilePic } : require("../../assets/icon.png")}
             style={styles.messageAvatar}
           />
         )}
