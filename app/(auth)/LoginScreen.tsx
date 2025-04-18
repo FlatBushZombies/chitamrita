@@ -13,14 +13,13 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
 import { useSignIn } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
-import { router } from "expo-router"
+import { useRouter } from "expo-router"
 
 const LoginScreen = () => {
-  const navigation = useNavigation()
+  const router = useRouter()
   const { isLoaded, signIn, setActive } = useSignIn()
 
   const [identifier, setIdentifier] = useState("")
@@ -28,10 +27,6 @@ const LoginScreen = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
-
-  const handleSignUp = () => {
-    router.push("/(auth)/sign-up")
-  }
 
   const handleLogin = async () => {
     if (!isLoaded) return
@@ -45,9 +40,6 @@ const LoginScreen = () => {
       setError("")
       setIsLoading(true)
 
-      // Determine if the identifier is an email or username
-      const isEmail = identifier.includes("@")
-
       // Start the sign-in process with Clerk
       const signInAttempt = await signIn.create({
         identifier: identifier,
@@ -60,20 +52,37 @@ const LoginScreen = () => {
         await setActive({ session: signInAttempt.createdSessionId })
 
         // Navigate to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Main" }],
+        router.replace("/HomeScreen")
+      } else if (signInAttempt.status === "needs_second_factor") {
+        // Handle 2FA if needed
+        router.push("/(auth)/verification", {
+          signInId: signIn.id,
         })
-      } else if (signInAttempt.status === "needs_verification") {
-        // Handle verification if needed
-        navigation.navigate("Verification", {
+      } else if (signInAttempt.status === "needs_identifier" || signInAttempt.status === "needs_password") {
+        setError("Please enter both email and password")
+      } else if (signInAttempt.status === "needs_first_factor") {
+        // Handle email verification code
+        router.push("/(auth)/verification", {
           email: identifier,
           verificationStep: "login",
         })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error during sign in:", err)
-      setError(err.errors?.[0]?.message || "Invalid credentials. Please try again.")
+
+      if (err?.errors && Array.isArray(err.errors) && err.errors.length > 0) {
+        const clerkError = err.errors[0]
+
+        if (clerkError.code === "form_identifier_not_found") {
+          setError("No account found with this email or username")
+        } else if (clerkError.code === "form_password_incorrect") {
+          setError("Incorrect password")
+        } else {
+          setError(clerkError.message || "Invalid credentials. Please try again.")
+        }
+      } else {
+        setError("Invalid credentials. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -97,14 +106,12 @@ const LoginScreen = () => {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Phone number, username, or email"
+                placeholder="Email or username"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={identifier}
                 onChangeText={setIdentifier}
-                autoCapitalize= "255,255,0.6"
-                value={identifier}
-                onChangeText={setIdentifier}
                 autoCapitalize="none"
+                autoComplete="email"
               />
               <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             </View>
@@ -112,11 +119,12 @@ const LoginScreen = () => {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="password"
+                placeholder="Password"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoComplete="password"
               />
               <TouchableOpacity style={styles.inputIcon} onPress={() => setShowPassword(!showPassword)}>
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.text} />
@@ -124,18 +132,22 @@ const LoginScreen = () => {
             </View>
 
             <View style={styles.forgotPasswordContainer}>
-              <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+              <TouchableOpacity onPress={() => router.push("/(auth)/ForgotPassword")}>
                 <Text style={styles.forgotPasswordText}>Forgot password?</Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading || !isLoaded}>
-              {isLoading ? <ActivityIndicator color={COLORS.text} /> : <Text style={styles.loginButtonText}>Done</Text>}
+              {isLoading ? (
+                <ActivityIndicator color={COLORS.text} />
+              ) : (
+                <Text style={styles.loginButtonText}>Log In</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.signupLinkContainer}>
               <Text style={styles.signupLinkText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={handleSignUp}>
+              <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
                 <Text style={styles.signupLink}>Sign up</Text>
               </TouchableOpacity>
             </View>

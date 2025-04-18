@@ -13,13 +13,14 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
 import { useSignUp } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
+import { useRouter
 
+ } from "expo-router"
 const SignUpScreen = () => {
-  const navigation = useNavigation()
+  const router = useRouter()
   const { isLoaded, signUp, setActive } = useSignUp()
 
   const [email, setEmail] = useState("")
@@ -30,11 +31,22 @@ const SignUpScreen = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
+  const validateInputs = () => {
+    if (!email) return "Email is required"
+    if (!password) return "Password is required"
+    if (password.length < 8) return "Password must be at least 8 characters"
+    if (!username) return "Username is required"
+    if (!fullName) return "Full name is required"
+    return null
+  }
+
   const handleSignUp = async () => {
     if (!isLoaded) return
 
-    if (!email || !password || !username || !fullName) {
-      setError("All fields are required")
+    // Validate inputs
+    const validationError = validateInputs()
+    if (validationError) {
+      setError(validationError)
       return
     }
 
@@ -42,30 +54,46 @@ const SignUpScreen = () => {
       setError("")
       setIsLoading(true)
 
+      // Extract first and last name from full name
+      const nameParts = fullName.trim().split(" ")
+      const firstName = nameParts[0] || ""
+      const lastName = nameParts.slice(1).join(" ") || ""
+
       // Start the sign-up process with Clerk
       await signUp.create({
         emailAddress: email,
         password,
         username,
-      })
-
-      // Set the user's name
-      await signUp.update({
-        firstName: fullName.split(" ")[0],
-        lastName: fullName.split(" ").slice(1).join(" "),
+        firstName,
+        lastName,
       })
 
       // Prepare verification
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
 
-      // Navigate to verification screen
-      navigation.navigate("Verification", {
+      // Navigate to verification screen using router.push
+      router.push("/verification", {
         email,
         verificationStep: "email",
       })
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error during sign up:", err)
-      setError(err.errors?.[0]?.message || "Failed to create account. Please try again.")
+
+      // Handle specific Clerk errors
+      if (err?.errors && Array.isArray(err.errors) && err.errors.length > 0) {
+        const clerkError = err.errors[0]
+
+        // Handle specific error codes
+        if (clerkError.code === "form_identifier_exists") {
+          setError("This email or username is already in use")
+        } else if (clerkError.code === "form_password_pwned") {
+          setError("This password has been compromised. Please choose a stronger password")
+        } else {
+          setError(clerkError.message || "Failed to create account. Please try again.")
+        }
+      } else {
+        setError("Failed to create account. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -89,24 +117,26 @@ const SignUpScreen = () => {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="email, phone number"
+                placeholder="Email"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
               />
-              <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             </View>
 
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="password"
+                placeholder="Password"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoComplete="password-new"
               />
               <TouchableOpacity style={styles.inputIcon} onPress={() => setShowPassword(!showPassword)}>
                 <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.text} />
@@ -116,11 +146,12 @@ const SignUpScreen = () => {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="tag name"
+                placeholder="Username"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
+                autoComplete="username"
               />
               <Ionicons name="at-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             </View>
@@ -128,17 +159,31 @@ const SignUpScreen = () => {
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="first name and last name"
+                placeholder="Full Name"
                 placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 value={fullName}
                 onChangeText={setFullName}
+                autoComplete="name"
               />
               <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
             </View>
 
+            <View style={styles.termsContainer}>
+              <Text style={styles.termsText}>
+                By signing up, you agree to our{" "}
+                <Text style={styles.termsLink} onPress={() => router.push("/(auth)/get-started")}>
+                  Terms of Service
+                </Text>{" "}
+                and{" "}
+                <Text style={styles.termsLink} onPress={() => router.push("/verification")}>
+                  Privacy Policy
+                </Text>
+              </Text>
+            </View>
+
             <View style={styles.loginLinkContainer}>
               <Text style={styles.loginLinkText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <TouchableOpacity onPress={() => router.push("/(auth)/LoginScreen")}>
                 <Text style={styles.loginLink}>Log in</Text>
               </TouchableOpacity>
             </View>
@@ -147,7 +192,7 @@ const SignUpScreen = () => {
               {isLoading ? (
                 <ActivityIndicator color={COLORS.text} />
               ) : (
-                <Text style={styles.signupButtonText}>Done</Text>
+                <Text style={styles.signupButtonText}>Sign Up</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -217,6 +262,19 @@ const styles = StyleSheet.create({
   },
   inputIcon: {
     marginLeft: 10,
+  },
+  termsContainer: {
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  termsText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  termsLink: {
+    color: COLORS.primary,
+    fontWeight: "bold",
   },
   loginLinkContainer: {
     flexDirection: "row",

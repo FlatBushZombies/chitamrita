@@ -15,6 +15,10 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/cli": "^7.2.0",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/ios": "^7.2.0",
     "@clerk/clerk-expo": "^2.9.11",
     "@clerk/types": "^4.48.0",
     "@expo/vector-icons": "^14.0.4",

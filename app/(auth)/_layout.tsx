@@ -30,7 +30,7 @@ export default function RootLayout() {
       <Stack.Screen name="ChatListScreen" options={{ headerShown: false}}/>
       <Stack.Screen name="LoginScreen" options={{ headerShown: false}}/>
       <Stack.Screen name="SearchScreen" options={{ headerShown: false}}/>
-      <Stack.Screen name="SearchScreen" options={{ headerShown: false}}/>
+      <Stack.Screen name="ProfileScreen" options={{ headerShown: false}}/>
       <Stack.Screen name="verification" options={{ headerShown: false}}/>
       <Stack.Screen name="sign-up" options={{ headerShown: false}}/>
     </Stack>
