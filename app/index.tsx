@@ -1,179 +1,158 @@
 "use client"
 
-import { useEffect } from "react"
-
-import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, SafeAreaView, StatusBar } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from "react-native"
+import { useTheme } from "@/context/ThemeContext"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { useNavigation } from "@react-navigation/native"
-import { useAuth } from "@clerk/clerk-expo"
-import { COLORS } from "@/config/config"
-import { images } from "@/constants/images"
-import { router } from "expo-router"
+import { Ionicons } from "@expo/vector-icons"
+import { useRouter } from "expo-router"
 
-const LandingScreen = () => {
+const WelcomeScreen = () => {
+  const { colors } = useTheme()
   const navigation = useNavigation()
-  const { isSignedIn } = useAuth()
-
-  // If user is already signed in, redirect to main app
-  useEffect(() => {
-    if (isSignedIn) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Main" }],
-      })
-    }
-  }, [isSignedIn])
-
-  const handleSignUp = () => {
-    router.push("/(auth)/sign-up")
-  }
-
-  const handleLogin = () => {
-    router.push("/(auth)/LoginScreen")
-  }
-
-  const viewTerms = () => {
-    router.replace("/(auth)/get-started")
-  }
+  const router = useRouter()
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <ImageBackground
-        source={images.background}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.content}>
+    
+
+    <ImageBackground
+      source={{
+        uri: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/background.jpg-7lf5U4B2Uqi8K0YHIdgPaLEltiYIcF.jpeg",
+      }}
+      style={styles.backgroundImage}
+    >
+      <View style={styles.overlay}>
+        <SafeAreaView style={styles.container}>
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <View style={styles.logo} />
+            <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+              <Text style={styles.logoText}>Chitamrita</Text>
             </View>
-            <Text style={styles.appName}>Chitamrita</Text>
-            <View style={styles.authButtons}>
-              <TouchableOpacity style={styles.authButton} onPress={handleSignUp}>
-                <Text style={styles.authButtonText}>sign up</Text>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/sign-up')}>
+                <Text style={styles.headerButtonText}>sign up</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.authButton} onPress={handleLogin}>
-                <Text style={styles.authButtonText}>log in</Text>
+              <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/LoginScreen')}>
+                <Text style={styles.headerButtonText}>log in</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.getStartedButton} onPress={viewTerms}>
+            <TouchableOpacity
+              style={[styles.getStartedButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/(auth)/get-started')}
+            >
               <Text style={styles.getStartedText}>Swipe to get started</Text>
-              <Ionicons name="arrow-forward-circle" size={24} color={COLORS.text} />
+              <Ionicons name="arrow-forward-circle" size={24} color="white" />
             </TouchableOpacity>
 
-            <View style={styles.bottomBar}>
-              <View style={styles.languageSelector}>
+            <View style={styles.languageContainer}>
+              <TouchableOpacity style={[styles.languageButton, { backgroundColor: colors.primary }]}>
                 <Text style={styles.languageText}>english</Text>
-                <Ionicons name="globe-outline" size={20} color={COLORS.text} />
-              </View>
-              <TouchableOpacity style={styles.bottomButton}>
-                <Text style={styles.bottomButtonText}>premium</Text>
+                <Ionicons name="globe-outline" size={16} color="white" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.bottomButton}>
-                <Text style={styles.bottomButtonText}>support</Text>
+              <TouchableOpacity style={styles.premiumButton}>
+                <Text style={styles.premiumText}>premium</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.supportButton}>
+                <Text style={styles.supportText}>support</Text>
               </TouchableOpacity>
             </View>
           </View>
         </SafeAreaView>
-      </ImageBackground>
-    </View>
+      </View>
+    </ImageBackground>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   backgroundImage: {
     flex: 1,
+    width: "100%",
+    height: "100%",
   },
-  content: {
+  overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  logo: {
-    width: 50,
-    height: 50,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-  },
-  appName: {
-    color: COLORS.primary,
-    fontSize: 18,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  authButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: -25,
-  },
-  authButton: {
-    marginLeft: 15,
-  },
-  authButtonText: {
-    color: COLORS.text,
-    fontSize: 16,
-  },
-  footer: {
+  container: {
     flex: 1,
-    justifyContent: "flex-end",
     padding: 20,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  logoContainer: {
+    padding: 10,
+    borderRadius: 8,
+  },
+  logoText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    gap: 15,
+  },
+  headerButton: {
+    paddingVertical: 5,
+  },
+  headerButtonText: {
+    color: "white",
+    fontSize: 14,
+  },
+  footer: {
+    marginTop: "auto",
+    gap: 20,
+  },
   getStartedButton: {
-    backgroundColor: "rgba(168, 85, 247, 0.8)",
-    borderRadius: 30,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    padding: 15,
+    borderRadius: 30,
+    gap: 10,
   },
   getStartedText: {
-    color: COLORS.text,
+    color: "white",
+    fontWeight: "bold",
     fontSize: 16,
-    fontWeight: "500",
-    marginRight: 10,
   },
-  bottomBar: {
+  languageContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  languageSelector: {
+  languageButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(168, 85, 247, 0.8)",
-    borderRadius: 20,
-    paddingVertical: 8,
     paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 5,
   },
   languageText: {
-    color: COLORS.text,
-    marginRight: 5,
+    color: "white",
+    fontSize: 14,
   },
-  bottomButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
+  premiumButton: {
+    paddingVertical: 5,
   },
-  bottomButtonText: {
-    color: COLORS.text,
+  premiumText: {
+    color: "white",
+    fontSize: 14,
+  },
+  supportButton: {
+    paddingVertical: 5,
+  },
+  supportText: {
+    color: "white",
+    fontSize: 14,
   },
 })
 
-export default LandingScreen
+export default WelcomeScreen

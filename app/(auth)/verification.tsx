@@ -10,27 +10,59 @@ import {
   TextInput,
   Keyboard,
   ActivityIndicator,
+  ViewStyle,
+  TextStyle,
 } from "react-native"
 import { useNavigation, useRoute } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
 import { useSignIn, useSignUp } from "@clerk/clerk-expo"
 import { COLORS, COMMON_STYLES } from "@/config/config"
+import { router } from "expo-router"
+
+interface RouteParams {
+  email: string;
+  verificationStrategy: string;
+}
+
+interface Styles {
+  container: ViewStyle;
+  content: ViewStyle;
+  logoContainer: ViewStyle;
+  logo: ViewStyle;
+  headerText: TextStyle;
+  subHeaderText: TextStyle;
+  errorText: TextStyle;
+  codeContainer: ViewStyle;
+  codeInputWrapper: ViewStyle;
+  codeInput: TextStyle;
+  codeUnderline: ViewStyle;
+  verifyButton: ViewStyle;
+  verifyButtonDisabled: ViewStyle;
+  verifyButtonText: TextStyle;
+  resendButton: ViewStyle;
+  resendButtonDisabled: ViewStyle;
+  resendButtonText: TextStyle;
+  keypadContainer: ViewStyle;
+  keypad: ViewStyle;
+  keypadButton: ViewStyle;
+  keypadButtonText: TextStyle;
+}
 
 const VerificationScreen = () => {
   const navigation = useNavigation()
   const route = useRoute()
-  const { email, verificationStep } = route.params || {}
+  const { email, verificationStrategy } = (route.params || {}) as RouteParams
 
   const { isLoaded: isSignUpLoaded, signUp, setActive: setSignUpActive } = useSignUp()
   const { isLoaded: isSignInLoaded, signIn, setActive: setSignInActive } = useSignIn()
 
-  const [code, setCode] = useState(["", "", "", "", "", ""])
+  const [code, setCode] = useState<string[]>(["", "", "", "", "", ""])
   const [displayCode, setDisplayCode] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [timer, setTimer] = useState(60)
 
-  const inputRefs = useRef([])
+  const inputRefs = useRef<(TextInput | null)[]>([])
 
   useEffect(() => {
     const countdown = setInterval(() => {
@@ -44,7 +76,7 @@ const VerificationScreen = () => {
     setDisplayCode(code.join(""))
   }, [code])
 
-  const handleCodeChange = (text, index) => {
+  const handleCodeChange = (text: string, index: number) => {
     if (text.length > 1) {
       // Handle paste of full code
       const pastedCode = text.slice(0, 6).split("")
@@ -62,7 +94,7 @@ const VerificationScreen = () => {
       if (index + pastedCode.length >= 6) {
         Keyboard.dismiss()
       } else if (inputRefs.current[index + pastedCode.length]) {
-        inputRefs.current[index + pastedCode.length].focus()
+        inputRefs.current[index + pastedCode.length]?.focus()
       }
     } else {
       // Handle single digit input
@@ -72,18 +104,18 @@ const VerificationScreen = () => {
 
       // Auto-advance to next input
       if (text !== "" && index < 5 && inputRefs.current[index + 1]) {
-        inputRefs.current[index + 1].focus()
+        inputRefs.current[index + 1]?.focus()
       }
     }
   }
 
-  const handleKeyPress = (e, index) => {
+  const handleKeyPress = (e: any, index: number) => {
     // Handle backspace
     if (e.nativeEvent.key === "Backspace" && index > 0 && code[index] === "") {
       const newCode = [...code]
       newCode[index - 1] = ""
       setCode(newCode)
-      inputRefs.current[index - 1].focus()
+      inputRefs.current[index - 1]?.focus()
     }
   }
 
@@ -99,53 +131,47 @@ const VerificationScreen = () => {
       setError("")
       setIsLoading(true)
 
-      if (verificationStep === "email") {
-        // Handle email verification during signup
-        if (!isSignUpLoaded) return
+      if (!isSignUpLoaded && !isSignInLoaded) {
+        setError("Authentication service is not ready. Please try again.")
+        return
+      }
 
-        const completeSignUp = await signUp.attemptEmailAddressVerification({
+      // Handle sign-up verification
+      if (isSignUpLoaded && signUp) {
+        const result = await signUp.attemptEmailAddressVerification({
           code: fullCode,
         })
 
-        if (completeSignUp.status === "complete") {
-          // Set the active session
-          await setSignUpActive({ session: completeSignUp.createdSessionId })
-
-          // Navigate to main app
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Main" }],
-          })
+        if (result.status === "complete") {
+          await setSignUpActive({ session: result.createdSessionId })
+          router.replace('/HomeScreen')
+        } else {
+          setError("Verification failed. Please try again.")
         }
-      } else if (verificationStep === "login") {
-        // Handle verification during login
-        if (!isSignInLoaded) return
-
-        const completeSignIn = await signIn.attemptFirstFactor({
+      }
+      // Handle sign-in verification
+      else if (isSignInLoaded && signIn) {
+        const result = await signIn.attemptFirstFactor({
           strategy: "email_code",
           code: fullCode,
         })
 
-        if (completeSignIn.status === "complete") {
-          // Set the active session
-          await setSignInActive({ session: completeSignIn.createdSessionId })
-
-          // Navigate to main app
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Main" }],
-          })
+        if (result.status === "complete") {
+          await setSignInActive({ session: result.createdSessionId })
+          router.replace('/HomeScreen')
+        } else {
+          setError("Verification failed. Please try again.")
         }
-      } else if (verificationStep === "reset") {
-        // Handle password reset verification
-        if (!isSignInLoaded) return
-
-        // Navigate to reset password screen
-        navigation.navigate("/", { email, code: fullCode })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Verification error:", err)
-      setError(err.errors?.[0]?.message || "Invalid verification code. Please try again.")
+      if (err.errors?.[0]?.code === "form_code_invalid") {
+        setError("Invalid verification code. Please try again.")
+      } else if (err.errors?.[0]?.code === "form_code_expired") {
+        setError("Verification code has expired. Please request a new one.")
+      } else {
+        setError(err.errors?.[0]?.message || "Verification failed. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -154,32 +180,54 @@ const VerificationScreen = () => {
   const handleResendCode = async () => {
     try {
       setIsLoading(true)
+      setError("")
 
-      if (verificationStep === "email") {
-        if (!isSignUpLoaded) return
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-      } else if (verificationStep === "login" || verificationStep === "reset") {
-        if (!isSignInLoaded) return
-        await signIn.prepareFirstFactor({
+      if (!isSignUpLoaded && !isSignInLoaded) {
+        setError("Authentication service is not ready. Please try again.")
+        return
+      }
+
+      // Handle sign-up resend
+      if (isSignUpLoaded && signUp) {
+        await signUp.prepareEmailAddressVerification({
           strategy: "email_code",
+        })
+      }
+      // Handle sign-in resend
+      else if (isSignInLoaded && signIn) {
+        const firstFactor = await signIn.create({
           identifier: email,
         })
+
+        if (firstFactor.status === "needs_first_factor" && firstFactor.supportedFirstFactors) {
+          const emailFactor = firstFactor.supportedFirstFactors.find(
+            (factor) => factor.strategy === "email_code"
+          )
+
+          if (emailFactor?.emailAddressId) {
+            await signIn.prepareFirstFactor({
+              strategy: "email_code",
+              emailAddressId: emailFactor.emailAddressId,
+            })
+          } else {
+            setError("Email verification is not available. Please try again.")
+          }
+        }
       }
 
       setTimer(60)
-      setError("")
       // Reset code fields
       setCode(["", "", "", "", "", ""])
       inputRefs.current[0]?.focus()
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to resend code:", err)
-      setError("Failed to resend code. Please try again.")
+      setError(err.errors?.[0]?.message || "Failed to resend code. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDigitPress = (digit) => {
+  const handleDigitPress = (digit: string) => {
     // Find the first empty slot
     const emptyIndex = code.findIndex((c) => c === "")
 
@@ -211,26 +259,26 @@ const VerificationScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logo} />
+    <SafeAreaView style={styles.container as ViewStyle}>
+      <View style={styles.content as ViewStyle}>
+        <View style={styles.logoContainer as ViewStyle}>
+          <View style={styles.logo as ViewStyle} />
         </View>
 
-        <Text style={styles.headerText}>Verification Code</Text>
-        <Text style={styles.subHeaderText}>
-          Please enter Code sent to{"\n"}
+        <Text style={styles.headerText as TextStyle}>Verification Code</Text>
+        <Text style={styles.subHeaderText as TextStyle}>
+          Please enter the code sent to{"\n"}
           {email}
         </Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? <Text style={styles.errorText as TextStyle}>{error}</Text> : null}
 
-        <View style={styles.codeContainer}>
+        <View style={styles.codeContainer as ViewStyle}>
           {code.map((digit, index) => (
-            <View key={index} style={styles.codeInputWrapper}>
+            <View key={index} style={styles.codeInputWrapper as ViewStyle}>
               <TextInput
                 ref={(ref) => (inputRefs.current[index] = ref)}
-                style={styles.codeInput}
+                style={styles.codeInput as TextStyle}
                 value={digit}
                 onChangeText={(text) => handleCodeChange(text, index)}
                 onKeyPress={(e) => handleKeyPress(e, index)}
@@ -238,42 +286,62 @@ const VerificationScreen = () => {
                 maxLength={1}
                 selectTextOnFocus
               />
-              <View style={styles.codeUnderline} />
+              <View style={styles.codeUnderline as ViewStyle} />
             </View>
           ))}
         </View>
 
         <TouchableOpacity
-          style={styles.verifyButton}
+          style={[
+            styles.verifyButton as ViewStyle,
+            isLoading && (styles.verifyButtonDisabled as ViewStyle),
+          ]}
           onPress={handleVerify}
           disabled={isLoading || code.some((digit) => digit === "")}
         >
-          {isLoading ? <ActivityIndicator color={COLORS.text} /> : <Text style={styles.verifyButtonText}>Verify</Text>}
+          {isLoading ? (
+            <ActivityIndicator color={COLORS.text} />
+          ) : (
+            <Text style={styles.verifyButtonText as TextStyle}>Verify</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.resendButton} onPress={handleResendCode} disabled={timer > 0 || isLoading}>
-          <Text style={styles.resendButtonText}>{timer > 0 ? `Resend Code (${timer}s)` : "Resend Code"}</Text>
+        <TouchableOpacity
+          style={[
+            styles.resendButton as ViewStyle,
+            (timer > 0 || isLoading) && (styles.resendButtonDisabled as ViewStyle),
+          ]}
+          onPress={handleResendCode}
+          disabled={timer > 0 || isLoading}
+        >
+          <Text style={styles.resendButtonText as TextStyle}>
+            {timer > 0 ? `Resend Code (${timer}s)` : "Resend Code"}
+          </Text>
         </TouchableOpacity>
 
-        <View style={styles.keypadContainer}>
-          <Text style={styles.displayCode}>{displayCode}</Text>
-
-          <View style={styles.keypad}>
+        <View style={styles.keypadContainer as ViewStyle}>
+          <View style={styles.keypad as ViewStyle}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
               <TouchableOpacity
                 key={digit}
-                style={styles.keypadButton}
+                style={styles.keypadButton as ViewStyle}
                 onPress={() => handleDigitPress(digit.toString())}
               >
-                <Text style={styles.keypadButtonText}>{digit}</Text>
+                <Text style={styles.keypadButtonText as TextStyle}>{digit}</Text>
               </TouchableOpacity>
             ))}
 
-            <TouchableOpacity style={styles.keypadButton} onPress={() => handleDigitPress("0")}>
-              <Text style={styles.keypadButtonText}>0</Text>
+            <TouchableOpacity
+              style={styles.keypadButton as ViewStyle}
+              onPress={() => handleDigitPress("0")}
+            >
+              <Text style={styles.keypadButtonText as TextStyle}>0</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.keypadButton} onPress={handleBackspace}>
+            <TouchableOpacity
+              style={styles.keypadButton as ViewStyle}
+              onPress={handleBackspace}
+            >
               <Ionicons name="backspace-outline" size={24} color={COLORS.text} />
             </TouchableOpacity>
           </View>
@@ -283,7 +351,7 @@ const VerificationScreen = () => {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create<Styles>({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -291,7 +359,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 20,
-    alignItems: "center",
+    alignItems: "center" as const,
   },
   logoContainer: {
     marginVertical: 20,
@@ -305,7 +373,7 @@ const styles = StyleSheet.create({
   headerText: {
     color: COLORS.text,
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "bold" as const,
     marginBottom: 10,
   },
   subHeaderText: {
@@ -326,7 +394,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   codeInputWrapper: {
-    alignItems: "center",
+    alignItems: "center" as const,
   },
   codeInput: {
     width: 40,
@@ -341,15 +409,27 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.text,
   },
   verifyButton: {
-    ...COMMON_STYLES.button,
     width: "80%",
     marginBottom: 15,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  verifyButtonDisabled: {
+    opacity: 0.7,
   },
   verifyButtonText: {
-    ...COMMON_STYLES.buttonText,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "bold" as const,
   },
   resendButton: {
     padding: 10,
+  },
+  resendButtonDisabled: {
+    opacity: 0.5,
   },
   resendButtonText: {
     color: COLORS.textSecondary,
@@ -359,17 +439,10 @@ const styles = StyleSheet.create({
     width: "100%",
     position: "absolute",
     bottom: 0,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.card,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-  },
-  displayCode: {
-    color: COLORS.text,
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 15,
   },
   keypad: {
     flexDirection: "row",
@@ -379,16 +452,16 @@ const styles = StyleSheet.create({
   keypadButton: {
     width: "30%",
     height: 60,
-    backgroundColor: "#ffffff",
+    backgroundColor: COLORS.background,
     borderRadius: 10,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
     marginBottom: 10,
   },
   keypadButtonText: {
     fontSize: 24,
-    fontWeight: "bold",
-    color: "#000000",
+    fontWeight: "bold" as const,
+    color: COLORS.text,
   },
 })
 

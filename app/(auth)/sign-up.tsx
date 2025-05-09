@@ -7,293 +7,295 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { useTheme } from "@/context/ThemeContext"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { useSignUp } from "@clerk/clerk-expo"
-import { COLORS, COMMON_STYLES } from "@/config/config"
-import { useRouter
+import { Ionicons } from "@expo/vector-icons"
+import { router } from "expo-router"
 
- } from "expo-router"
 const SignUpScreen = () => {
-  const router = useRouter()
-  const { isLoaded, signUp, setActive } = useSignUp()
+  const { colors } = useTheme()
+  const { signUp, isLoaded } = useSignUp()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [username, setUsername] = useState("")
-  const [fullName, setFullName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const validateInputs = () => {
-    if (!email) return "Email is required"
-    if (!password) return "Password is required"
-    if (password.length < 8) return "Password must be at least 8 characters"
-    if (!username) return "Username is required"
-    if (!fullName) return "Full name is required"
-    return null
-  }
-
   const handleSignUp = async () => {
-    if (!isLoaded) return
-
-    // Validate inputs
-    const validationError = validateInputs()
-    if (validationError) {
-      setError(validationError)
+    if (!isLoaded) {
+      setError("Authentication service is not ready. Please try again later.")
       return
     }
 
+    // Form validation
+    if (!email.trim()) {
+      setError("Please enter your email")
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address")
+      return
+    }
+    if (!password.trim()) {
+      setError("Please enter your password")
+      return
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long")
+      return
+    }
+    if (!username.trim()) {
+      setError("Please enter a username")
+      return
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores")
+      return
+    }
+    if (!firstName.trim()) {
+      setError("Please enter your first name")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
     try {
-      setError("")
-      setIsLoading(true)
-
-      // Extract first and last name from full name
-      const nameParts = fullName.trim().split(" ")
-      const firstName = nameParts[0] || ""
-      const lastName = nameParts.slice(1).join(" ") || ""
-
-      // Start the sign-up process with Clerk
-      await signUp.create({
-        emailAddress: email,
-        password,
-        username,
-        firstName,
-        lastName,
+      // Create the user account (latest Clerk API)
+      const result = await signUp.create({
+        emailAddress: email.trim(),
+        password: password.trim(),
+        username: username.trim(),
+        firstName: firstName.trim(), // ✅ Now supported in latest Clerk
+        lastName: lastName.trim(),   // ✅ Now supported in latest Clerk
       })
 
-      // Prepare verification
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-
-      // Navigate to verification screen using router.push
-      router.push("/verification", {
-        email,
-        verificationStep: "email",
-      })
-    } catch (err: any) {
-      console.error("Error during sign up:", err)
-
-      // Handle specific Clerk errors
-      if (err?.errors && Array.isArray(err.errors) && err.errors.length > 0) {
-        const clerkError = err.errors[0]
-
-        // Handle specific error codes
-        if (clerkError.code === "form_identifier_exists") {
-          setError("This email or username is already in use")
-        } else if (clerkError.code === "form_password_pwned") {
-          setError("This password has been compromised. Please choose a stronger password")
-        } else {
-          setError(clerkError.message || "Failed to create account. Please try again.")
-        }
+      // Handle different sign-up statuses
+      if (result.status === "complete") {
+        router.replace('/HomeScreen')
+      } else if (result.status === "missing_requirements") {
+        router.push({
+          pathname: "/(auth)/verification",
+          params: {
+            email: email.trim(),
+            verificationStrategy: "email_code",
+          },
+        })
       } else {
-        setError("Failed to create account. Please try again.")
+        setError("Sign up was not completed. Please try again.")
+      }
+    } catch (err: any) {
+      console.error("Error signing up:", JSON.stringify(err, null, 2))
+
+      // Handle Clerk errors
+      if (err.errors?.[0]?.code === "form_identifier_exists") {
+        setError("An account with this email already exists")
+      } else if (err.errors?.[0]?.code === "form_username_exists") {
+        setError("This username is already taken")
+      } else if (err.errors?.[0]?.code === "form_password_pwned") {
+        setError("This password has been compromised. Please choose a different one.")
+      } else {
+        setError(err.errors?.[0]?.longMessage || "Failed to sign up. Please try again.")
       }
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoid}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={styles.logoContainer}>
-            <View style={styles.logo} />
+            <View style={[styles.logo, { backgroundColor: colors.primary }]} />
+            <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome!</Text>
+            <Text style={[styles.signUpText, { color: colors.text }]}>Sign up</Text>
+            <Text style={[styles.infoText, { color: colors.placeholder }]}>Please fill your information</Text>
           </View>
 
-          <Text style={styles.welcomeText}>Welcome!</Text>
-          <Text style={styles.headerText}>Sign up</Text>
-          <Text style={styles.subHeaderText}>Please fill your information</Text>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
+          <View style={styles.formContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Email"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                placeholderTextColor={colors.placeholder}
                 value={email}
                 onChangeText={setEmail}
-                keyboardType="email-address"
                 autoCapitalize="none"
+                keyboardType="email-address"
                 autoComplete="email"
               />
-              <Ionicons name="mail-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
             </View>
 
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Password"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                placeholderTextColor={colors.placeholder}
+                secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="password-new"
+                autoComplete="password"
               />
-              <TouchableOpacity style={styles.inputIcon} onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.text} />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.inputIcon}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.placeholder}
+                />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Username"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                placeholderTextColor={colors.placeholder}
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 autoComplete="username"
               />
-              <Ionicons name="at-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
             </View>
 
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
-                placeholder="Full Name"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                value={fullName}
-                onChangeText={setFullName}
-                autoComplete="name"
+                style={[styles.input, { color: colors.text }]}
+                placeholder="First Name"
+                placeholderTextColor={colors.placeholder}
+                value={firstName}
+                onChangeText={setFirstName}
+                autoComplete="name-given"
               />
-              <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
             </View>
 
-            <View style={styles.termsContainer}>
-              <Text style={styles.termsText}>
-                By signing up, you agree to our{" "}
-                <Text style={styles.termsLink} onPress={() => router.push("/(auth)/get-started")}>
-                  Terms of Service
-                </Text>{" "}
-                and{" "}
-                <Text style={styles.termsLink} onPress={() => router.push("/verification")}>
-                  Privacy Policy
-                </Text>
-              </Text>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Last Name"
+                placeholderTextColor={colors.placeholder}
+                value={lastName}
+                onChangeText={setLastName}
+                autoComplete="name-family"
+              />
+              <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
             </View>
 
-            <View style={styles.loginLinkContainer}>
-              <Text style={styles.loginLinkText}>Already have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/(auth)/LoginScreen")}>
-                <Text style={styles.loginLink}>Log in</Text>
-              </TouchableOpacity>
-            </View>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <TouchableOpacity style={styles.signupButton} onPress={handleSignUp} disabled={isLoading || !isLoaded}>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.text} />
+            <TouchableOpacity
+              style={[styles.signUpButton, { backgroundColor: colors.primary }]}
+              onPress={handleSignUp}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
               ) : (
-                <Text style={styles.signupButtonText}>Sign Up</Text>
+                <Text style={styles.signUpButtonText}>Sign Up</Text>
               )}
             </TouchableOpacity>
+
+            <View style={styles.signInContainer}>
+              <Text style={[styles.signInText, { color: colors.placeholder }]}>Already have an account?</Text>
+              <TouchableOpacity onPress={() => router.push("/(auth)/LoginScreen")}>
+                <Text style={[styles.signInLink, { color: colors.primary }]}> Log in</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
+// Keep your existing styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoid: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     padding: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginVertical: 20,
+    marginTop: 40,
+    marginBottom: 40,
   },
   logo: {
     width: 60,
     height: 60,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
+    borderRadius: 12,
+    marginBottom: 20,
   },
   welcomeText: {
-    color: COLORS.text,
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 5,
+    fontSize: 18,
+    fontWeight: "500",
   },
-  headerText: {
-    color: COLORS.text,
-    fontSize: 28,
+  signUpText: {
+    fontSize: 24,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 5,
-  },
-  subHeaderText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 30,
-  },
-  errorText: {
-    color: COLORS.error,
-    textAlign: "center",
-    marginBottom: 15,
-  },
-  form: {
-    width: "100%",
-  },
-  inputContainer: {
-    ...COMMON_STYLES.inputContainer,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  input: {
-    ...COMMON_STYLES.input,
-    flex: 1,
-  },
-  inputIcon: {
-    marginLeft: 10,
-  },
-  termsContainer: {
-    marginTop: 15,
     marginBottom: 10,
   },
-  termsText: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
+  infoText: {
+    fontSize: 14,
+  },
+  formContainer: {
+    gap: 15,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 50,
+  },
+  input: {
+    flex: 1,
+    height: 50,
+  },
+  inputIcon: {
+    padding: 5,
+  },
+  errorText: {
+    color: "#EF4444",
+    marginTop: 10,
     textAlign: "center",
   },
-  termsLink: {
-    color: COLORS.primary,
+  signUpButton: {
+    height: 50,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  signUpButtonText: {
+    color: "white",
+    fontSize: 16,
     fontWeight: "bold",
   },
-  loginLinkContainer: {
+  signInContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginVertical: 15,
+    marginTop: 20,
   },
-  loginLinkText: {
-    color: COLORS.textSecondary,
+  signInText: {
+    fontSize: 14,
   },
-  loginLink: {
-    color: COLORS.primary,
+  signInLink: {
+    fontSize: 14,
     fontWeight: "bold",
-  },
-  signupButton: {
-    ...COMMON_STYLES.button,
-    marginTop: 10,
-  },
-  signupButtonText: {
-    ...COMMON_STYLES.buttonText,
   },
 })
 

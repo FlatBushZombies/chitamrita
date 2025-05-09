@@ -7,245 +7,243 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
 } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { useTheme } from "@/context/ThemeContext"
+import { SafeAreaView } from "react-native-safe-area-context"
+import { useNavigation } from "@react-navigation/native"
 import { useSignIn } from "@clerk/clerk-expo"
-import { COLORS, COMMON_STYLES } from "@/config/config"
+import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 
-const LoginScreen = () => {
+const SignInScreen = () => {
+  const { colors } = useTheme()
+  const navigation = useNavigation()
+  const { signIn, setActive, isLoaded } = useSignIn()
   const router = useRouter()
-  const { isLoaded, signIn, setActive } = useSignIn()
 
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  const handleLogin = async () => {
-    if (!isLoaded) return
-
-    if (!identifier || !password) {
-      setError("All fields are required")
+  const handleSignIn = async () => {
+    if (!isLoaded) {
+      setError("Authentication service is not ready. Please try again later.")
       return
     }
 
-    try {
-      setError("")
-      setIsLoading(true)
+    // Basic form validation
+    if (!identifier.trim()) {
+      setError("Please enter your identifier")
+      return
+    }
+    if (!password.trim()) {
+      setError("Please enter your password")
+      return
+    }
 
-      // Start the sign-in process with Clerk
-      const signInAttempt = await signIn.create({
-        identifier: identifier,
+    setLoading(true)
+    setError("")
+
+    try {
+      const result = await signIn.create({
+        identifier,
         password,
       })
 
-      // Check if the sign-in was successful
-      if (signInAttempt.status === "complete") {
-        // Set the active session
-        await setActive({ session: signInAttempt.createdSessionId })
-
-        // Navigate to main app
-        router.replace("/HomeScreen")
-      } else if (signInAttempt.status === "needs_second_factor") {
-        // Handle 2FA if needed
-        router.push("/(auth)/verification", {
-          signInId: signIn.id,
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId })
+        router.replace('/HomeScreen')
+      } else if (result.status === "needs_first_factor") {
+        router.push({
+          pathname: "/(auth)/verification",
+          params: {
+            email: identifier,
+            verificationStrategy: "email_code",
+          },
         })
-      } else if (signInAttempt.status === "needs_identifier" || signInAttempt.status === "needs_password") {
-        setError("Please enter both email and password")
-      } else if (signInAttempt.status === "needs_first_factor") {
-        // Handle email verification code
-        router.push("/(auth)/verification", {
-          email: identifier,
-          verificationStep: "login",
-        })
+      } else {
+        console.log("Sign in status:", result.status)
+        setError("Sign in was not completed. Please try again.")
       }
     } catch (err: any) {
-      console.error("Error during sign in:", err)
+      console.error("Error signing in:", err)
 
-      if (err?.errors && Array.isArray(err.errors) && err.errors.length > 0) {
-        const clerkError = err.errors[0]
-
-        if (clerkError.code === "form_identifier_not_found") {
-          setError("No account found with this email or username")
-        } else if (clerkError.code === "form_password_incorrect") {
-          setError("Incorrect password")
-        } else {
-          setError(clerkError.message || "Invalid credentials. Please try again.")
-        }
+      if (err.errors?.[0]?.code === "form_identifier_not_found") {
+        setError("No account found with this identifier. Please check your input or sign up.")
+      } else if (err.errors?.[0]?.code === "form_password_incorrect") {
+        setError("Incorrect password. Please try again or use 'Forgot Password'.")
+      } else if (err.errors?.[0]?.code === "form_identifier_invalid") {
+        setError("Invalid identifier format. Please check your input.")
+      } else if (err.errors?.[0]?.code === "form_identifier_required") {
+        setError("Please enter your identifier (email or username).")
+      } else if (err.errors?.[0]?.code === "form_password_required") {
+        setError("Please enter your password.")
       } else {
-        setError("Invalid credentials. Please try again.")
+        setError(err.errors?.[0]?.message || "Failed to sign in. Please check your credentials and try again.")
       }
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
+  const handleForgotPassword = () => {
+    navigation.navigate("ForgotPassword" as never)
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardAvoid}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={styles.logoContainer}>
-            <View style={styles.logo} />
+            <View style={[styles.logo, { backgroundColor: colors.primary }]} />
+            <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome back</Text>
+            <Text style={[styles.nameText, { color: colors.text }]}>Chitamrita</Text>
+            <Text style={[styles.infoText, { color: colors.placeholder }]}>Please fill in your information</Text>
           </View>
 
-          <Text style={styles.welcomeText}>Welcome back</Text>
-          <Text style={styles.headerText}>Chitamrita</Text>
-          <Text style={styles.subHeaderText}>Please fill your information</Text>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <View style={styles.form}>
-            <View style={styles.inputContainer}>
+          <View style={styles.formContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
-                placeholder="Email or username"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                style={[styles.input, { color: colors.text }]}
+                placeholder="Phone number, username, or email"
+                placeholderTextColor={colors.placeholder}
                 value={identifier}
                 onChangeText={setIdentifier}
                 autoCapitalize="none"
-                autoComplete="email"
               />
-              <Ionicons name="person-outline" size={20} color={COLORS.text} style={styles.inputIcon} />
+              <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
             </View>
 
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Password"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                placeholderTextColor={colors.placeholder}
+                secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete="password"
               />
-              <TouchableOpacity style={styles.inputIcon} onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.text} />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.inputIcon}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.placeholder}
+                />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.forgotPasswordContainer}>
-              <TouchableOpacity onPress={() => router.push("/(auth)/ForgotPassword")}>
-                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={isLoading || !isLoaded}>
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.text} />
-              ) : (
-                <Text style={styles.loginButtonText}>Log In</Text>
-              )}
+            <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordContainer}>
+              <Text style={[styles.forgotPasswordText, { color: colors.placeholder }]}>Forgot password?</Text>
             </TouchableOpacity>
 
-            <View style={styles.signupLinkContainer}>
-              <Text style={styles.signupLinkText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
-                <Text style={styles.signupLink}>Sign up</Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.signInButton, { backgroundColor: colors.primary }]}
+              onPress={handleSignIn}
+              disabled={loading}
+            >
+              <Text style={styles.signInButtonText}>{loading ? "Signing in..." : "Done"}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.signUpContainer}>
+              <Text style={[styles.signUpText, { color: colors.placeholder }]}>Don't have an account?</Text>
+              <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+                <Text style={[styles.signUpLink, { color: colors.primary }]} > Sign up</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  keyboardAvoid: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     padding: 20,
   },
   logoContainer: {
     alignItems: "center",
-    marginVertical: 20,
+    marginTop: 40,
+    marginBottom: 40,
   },
   logo: {
     width: 60,
     height: 60,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
+    borderRadius: 12,
+    marginBottom: 20,
   },
   welcomeText: {
-    color: COLORS.text,
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 5,
+    fontSize: 18,
+    fontWeight: "500",
   },
-  headerText: {
-    color: COLORS.text,
-    fontSize: 28,
+  nameText: {
+    fontSize: 24,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 5,
+    marginBottom: 10,
   },
-  subHeaderText: {
-    color: COLORS.textSecondary,
+  infoText: {
     fontSize: 14,
-    textAlign: "center",
-    marginBottom: 30,
   },
-  errorText: {
-    color: COLORS.error,
-    textAlign: "center",
-    marginBottom: 15,
-  },
-  form: {
-    width: "100%",
+  formContainer: {
+    gap: 15,
   },
   inputContainer: {
-    ...COMMON_STYLES.inputContainer,
     flexDirection: "row",
     alignItems: "center",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 50,
   },
   input: {
-    ...COMMON_STYLES.input,
     flex: 1,
+    height: 50,
   },
   inputIcon: {
-    marginLeft: 10,
+    padding: 5,
   },
   forgotPasswordContainer: {
     alignItems: "flex-end",
-    marginTop: 5,
   },
   forgotPasswordText: {
-    color: COLORS.textSecondary,
     fontSize: 14,
   },
-  loginButton: {
-    ...COMMON_STYLES.button,
+  errorText: {
+    color: "#EF4444",
+    marginTop: 10,
+    textAlign: "center",
+  },
+  signInButton: {
+    height: 50,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 20,
   },
-  loginButtonText: {
-    ...COMMON_STYLES.buttonText,
+  signInButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
   },
-  signupLinkContainer: {
+  signUpContainer: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 20,
   },
-  signupLinkText: {
-    color: COLORS.textSecondary,
+  signUpText: {
+    fontSize: 14,
   },
-  signupLink: {
-    color: COLORS.primary,
+  signUpLink: {
+    fontSize: 14,
     fontWeight: "bold",
   },
 })
 
-export default LoginScreen
+export default SignInScreen

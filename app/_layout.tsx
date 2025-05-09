@@ -4,6 +4,8 @@ import { ClerkProvider } from "@clerk/clerk-expo";
 import * as SecureStore from 'expo-secure-store';
 import { UserProvider } from "@/context/userContext"
 import { SocketProvider } from "@/context/SocketContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 // Clerk token cache
 const tokenCache = {
@@ -25,14 +27,16 @@ const tokenCache = {
 
 export default function RootLayout() {
   return (
-    <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
-      <UserProvider>
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false}} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false}}/>
-      <Stack.Screen name="(root)" options={{ headerShown: false}}/>
-    </Stack>
-    </UserProvider>
+    <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache} >
+      <SafeAreaProvider>
+      <ThemeProvider>
+         <Stack>
+           <Stack.Screen name="index" options={{ headerShown: false}} />
+           <Stack.Screen name="(auth)" options={{ headerShown: false}}/>
+           <Stack.Screen name="(root)" options={{ headerShown: false}}/>
+          </Stack>
+    </ThemeProvider>
+    </SafeAreaProvider>
     </ClerkProvider>
   )
 }
