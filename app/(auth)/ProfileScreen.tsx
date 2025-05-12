@@ -11,45 +11,85 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  TextInput,
+  FlatList,
 } from "react-native"
 import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
-import axios from "axios"
-import { API_URL, COLORS } from "@/config/config"
+import { COLORS } from "@/config/config"
 import { useAuth } from "@/context/AuthContext"
+import { useUserContext } from "@/context/userContext"
+import { router } from "expo-router"
 
-interface UserStats {
+interface User {
+  id: string
+  username: string
+  fullName: string
+  profilePic?: string
   followers: number
   following: number
-  messages: number
+  isFollowing?: boolean
 }
 
 const ProfileScreen = () => {
   const navigation = useNavigation()
-  const { user, token, logout } = useAuth()
+  const { user, signOut } = useAuth()
+  const { getUserProfile, followUser, unfollowUser, searchUsers, loading, error } = useUserContext()
 
-  const [stats, setStats] = useState<UserStats>({
-    followers: 0,
-    following: 0,
-    messages: 0,
-  })
-  const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState<User | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<User[]>([])
+  const [isSearching, setIsSearching] = useState(false)
 
   useEffect(() => {
-    loadUserStats()
-  }, [])
+    if (user) {
+      loadUserProfile()
+    }
+  }, [user])
 
-  const loadUserStats = async () => {
+  const loadUserProfile = async () => {
+    if (!user) return
     try {
-      setLoading(true)
-      const response = await axios.get(`${API_URL}/users/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      setStats(response.data)
+      const userProfile = await getUserProfile(user.id)
+      setProfile(userProfile)
     } catch (error) {
-      console.error("Failed to load user stats:", error)
-    } finally {
-      setLoading(false)
+      console.error("Failed to load user profile:", error)
+    }
+  }
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query)
+    if (query.trim().length > 0) {
+      setIsSearching(true)
+      const results = await searchUsers(query)
+      setSearchResults(results)
+      setIsSearching(false)
+    } else {
+      setSearchResults([])
+    }
+  }
+
+  const handleFollow = async (userId: string) => {
+    try {
+      await followUser(userId)
+      // Update local state
+      setSearchResults(prev =>
+        prev.map(u => (u.id === userId ? { ...u, isFollowing: true, followers: u.followers + 1 } : u))
+      )
+    } catch (error) {
+      console.error("Failed to follow user:", error)
+    }
+  }
+
+  const handleUnfollow = async (userId: string) => {
+    try {
+      await unfollowUser(userId)
+      // Update local state
+      setSearchResults(prev =>
+        prev.map(u => (u.id === userId ? { ...u, isFollowing: false, followers: u.followers - 1 } : u))
+      )
+    } catch (error) {
+      console.error("Failed to unfollow user:", error)
     }
   }
 
@@ -63,17 +103,44 @@ const ProfileScreen = () => {
         text: "Logout",
         onPress: async () => {
           try {
-            await logout()
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Landing" }],
-            })
+            await signOut()
           } catch (error) {
             console.error("Logout failed:", error)
           }
         },
       },
     ])
+  }
+
+  const renderSearchResult = ({ item }: { item: User }) => (
+    <View style={styles.searchResultItem}>
+      <Image
+        source={item.profilePic ? { uri: item.profilePic } : require("../../assets/icon.png")}
+        style={styles.searchResultAvatar}
+      />
+      <View style={styles.searchResultInfo}>
+        <Text style={styles.searchResultName}>{item.fullName}</Text>
+        <Text style={styles.searchResultUsername}>@{item.username}</Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.followButton, item.isFollowing && styles.followingButton]}
+        onPress={() => (item.isFollowing ? handleUnfollow(item.id) : handleFollow(item.id))}
+      >
+        <Text style={[styles.followButtonText, item.isFollowing && styles.followingButtonText]}>
+          {item.isFollowing ? "Following" : "Follow"}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  )
+
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    )
   }
 
   return (
@@ -85,81 +152,103 @@ const ProfileScreen = () => {
           </TouchableOpacity>
 
           <View style={styles.profileImageContainer}>
+            <Image
+              source={profile.profilePic ? { uri: profile.profilePic } : require("../../assets/icon.png")}
+              style={styles.profileImage}
+            />
             <TouchableOpacity style={styles.editProfileButton}>
               <Ionicons name="camera-outline" size={20} color={COLORS.text} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.username}>@{user?.username}</Text>
-          <Text style={styles.fullName}>{user?.fullName}</Text>
+          <Text style={styles.username}>@{profile.username}</Text>
+          <Text style={styles.fullName}>{profile.fullName}</Text>
 
           <TouchableOpacity style={styles.editButton}>
             <Text style={styles.editButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{profile.followers}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
           </View>
-        ) : (
-          <>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.followers}</Text>
-                <Text style={styles.statLabel}>Followers</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.following}</Text>
-                <Text style={styles.statLabel}>Following</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.messages}</Text>
-                <Text style={styles.statLabel}>Messages</Text>
-              </View>
-            </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{profile.following}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+        </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Account</Text>
-              <TouchableOpacity style={styles.menuItem}>
-                <Ionicons name="person-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
-                <Text style={styles.menuText}>Personal Information</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search users..."
+              placeholderTextColor={COLORS.textSecondary}
+              value={searchQuery}
+              onChangeText={handleSearch}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={20} color={COLORS.textSecondary} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
-                <Ionicons name="lock-closed-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
-                <Text style={styles.menuText}>Privacy & Security</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
-                <Ionicons name="notifications-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
-                <Text style={styles.menuText}>Notifications</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
+            )}
+          </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>More</Text>
-              <TouchableOpacity style={styles.menuItem}>
-                <Ionicons name="help-circle-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
-                <Text style={styles.menuText}>Help & Support</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem}>
-                <Ionicons name="information-circle-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
-                <Text style={styles.menuText}>About</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-                <Ionicons name="log-out-outline" size={22} color={COLORS.error} style={styles.menuIcon} />
-                <Text style={[styles.menuText, { color: COLORS.error }]}>Logout</Text>
-                <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+          {isSearching ? (
+            <ActivityIndicator style={styles.searchLoading} color={COLORS.primary} />
+          ) : searchResults.length > 0 ? (
+            <FlatList
+              data={searchResults}
+              renderItem={renderSearchResult}
+              keyExtractor={item => item.id}
+              style={styles.searchResults}
+            />
+          ) : searchQuery.length > 0 ? (
+            <Text style={styles.noResults}>No users found</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="person-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
+            <Text style={styles.menuText}>Personal Information</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="lock-closed-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
+            <Text style={styles.menuText}>Privacy & Security</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="notifications-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
+            <Text style={styles.menuText}>Notifications</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>More</Text>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="help-circle-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
+            <Text style={styles.menuText}>Help & Support</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="information-circle-outline" size={22} color={COLORS.text} style={styles.menuIcon} />
+            <Text style={styles.menuText}>About</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color={COLORS.error} style={styles.menuIcon} />
+            <Text style={[styles.menuText, { color: COLORS.error }]}>Logout</Text>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   )
@@ -230,7 +319,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   loadingContainer: {
-    padding: 30,
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
   },
   statsContainer: {
@@ -256,6 +346,84 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: COLORS.border,
+  },
+  searchContainer: {
+    padding: 15,
+  },
+  searchInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 45,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 16,
+  },
+  clearButton: {
+    padding: 5,
+  },
+  searchLoading: {
+    marginTop: 20,
+  },
+  searchResults: {
+    marginTop: 10,
+    maxHeight: 300,
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  searchResultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  searchResultInfo: {
+    flex: 1,
+  },
+  searchResultName: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  searchResultUsername: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+  },
+  followButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  followingButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  followButtonText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  followingButtonText: {
+    color: COLORS.primary,
+  },
+  noResults: {
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: 20,
   },
   section: {
     paddingHorizontal: 20,

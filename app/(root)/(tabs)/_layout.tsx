@@ -1,54 +1,85 @@
-import { createNativeStackNavigator } from "@react-navigation/native-stack"
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
+import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { View, StyleSheet } from "react-native"
 
-import HomeScreen from "./HomeScreen"
-import SearchScreen from "@/app/(auth)/SearchScreen"
-import ChatListScreen from "@/app/(auth)/ChatListScreen"
-import ProfileScreen from "@/app/(auth)/ProfileScreen"
+export default function AppLayout() {
+  const insets = useSafeAreaInsets()
 
-export const Stack = createNativeStackNavigator()
-export const Tab = createBottomTabNavigator()
-
-export const MainTabs = () => {
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName
-
-          if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline"
-          } else if (route.name === "Search") {
-            iconName = focused ? "search" : "search-outline"
-          } else if (route.name === "Add") {
-            iconName = focused ? "add-circle" : "add-circle-outline"
-          } else if (route.name === "Chats") {
-            iconName = focused ? "chatbubble" : "chatbubble-outline"
-          } else if (route.name === "Profile") {
-            iconName = focused ? "person" : "person-outline"
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />
-        },
-        tabBarActiveTintColor: "#a855f7",
-        tabBarInactiveTintColor: "gray",
+    <Tabs
+      screenOptions={{
+        headerShown: false,
         tabBarStyle: {
           backgroundColor: "#121212",
           borderTopWidth: 0,
-          elevation: 0,
-          height: 60,
-          paddingBottom: 10,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom,
+          paddingTop: 10,
         },
+        tabBarActiveTintColor: "#9333EA",
+        tabBarInactiveTintColor: "#FFFFFF",
         tabBarShowLabel: false,
-        headerShown: false,
-      })}
+      }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
-      <Tab.Screen name="Add" component={HomeScreen} options={{ tabBarButton: () => null }} />
-      <Tab.Screen name="Chats" component={ChatListScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-    </Tab.Navigator>
+      <Tabs.Screen
+        name="SearchScreen"
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeTab : {}}>
+              <Ionicons name="home" size={size} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeTab : {}}>
+              <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="add"
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeTab : {}}>
+              <Ionicons name="add-circle" size={size + 10} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ChatListScreen"
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeTab : {}}>
+              <Ionicons name="notifications-outline" size={size} color={color} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={focused ? styles.activeTab : {}}>
+              <Ionicons name="person-circle-outline" size={size} color={color} />
+            </View>
+          ),
+        }}
+      />
+    </Tabs>
   )
 }
+
+const styles = StyleSheet.create({
+  activeTab: {
+    backgroundColor: "#1E1E1E",
+    borderRadius: 50,
+    padding: 8,
+  },
+})

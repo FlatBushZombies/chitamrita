@@ -32,13 +32,19 @@ interface Message {
   createdAt: string
 }
 
+interface RouteParams {
+  userId: string;
+  username: string;
+  profilePic?: string;
+}
+
 const ChatScreen = () => {
   const route = useRoute()
   const navigation = useNavigation()
   const { user } = useAuth()
   const { socket, sendMessage, markMessageAsRead } = useSocket()
 
-  const { userId, username, profilePic } = route.params || {}
+  const { userId: chatUserId, username: chatUsername, profilePic: chatProfilePic } = (route.params || {}) as RouteParams
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState("")
@@ -55,17 +61,17 @@ const ChatScreen = () => {
 
   useEffect(() => {
     navigation.setOptions({
-      title: username,
+      title: chatUsername,
       headerLeft: () => (
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Image
-            source={profilePic ? { uri: profilePic } : require("../../assets/icon.png")}
+            source={chatProfilePic ? { uri: chatProfilePic } : require("../../../assets/icon.png")}
             style={styles.headerAvatar}
           />
-          <Text style={styles.headerTitle}>{username}</Text>
+          <Text style={styles.headerTitle}>{chatUsername}</Text>
         </View>
       ),
       headerRight: () => (
@@ -105,17 +111,17 @@ const ChatScreen = () => {
         }
       })
     }
-  }, [socket, userId])
+  }, [socket, chatUserId])
 
   const loadMessages = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_URL}/messages/${userId}`)
+      const response = await axios.get(`${API_URL}/messages/${chatUserId}`)
       setMessages(response.data)
 
       // Mark unread messages as read
       response.data.forEach((message: Message) => {
-        if (message.senderId === userId && !message.read) {
+        if (message.senderId === chatUserId && !message.read) {
           markMessageAsRead(message.id)
         }
       })
@@ -129,13 +135,13 @@ const ChatScreen = () => {
   const handleNewMessage = (message: Message) => {
     // Only add message if it's relevant to this chat
     if (
-      (message.senderId === userId && message.receiverId === user?.id) ||
-      (message.senderId === user?.id && message.receiverId === userId)
+      (message.senderId === chatUserId && message.receiverId === user?.id) ||
+      (message.senderId === user?.id && message.receiverId === chatUserId)
     ) {
       setMessages((prevMessages) => [...prevMessages, message])
 
       // Mark message as read if it's from the other user
-      if (message.senderId === userId && !message.read) {
+      if (message.senderId === chatUserId && !message.read) {
         markMessageAsRead(message.id)
       }
 
@@ -153,7 +159,7 @@ const ChatScreen = () => {
   const handleSendMessage = () => {
     if (!inputText.trim()) return
 
-    sendMessage(userId, inputText.trim())
+    sendMessage(chatUserId, inputText.trim())
     setInputText("")
   }
 
@@ -174,7 +180,31 @@ const ChatScreen = () => {
 
       // Start recording
       const recording = new Audio.Recording()
-      await recording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY)
+      await recording.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 128000,
+        },
+      })
       await recording.startAsync()
       setRecording(recording)
       setIsRecording(true)
@@ -212,7 +242,7 @@ const ChatScreen = () => {
           uri,
           type: "audio/m4a",
           name: "recording.m4a",
-        })
+        } as any)
 
         const response = await axios.post(`${API_URL}/upload/audio`, formData, {
           headers: {
@@ -221,7 +251,7 @@ const ChatScreen = () => {
         })
 
         const audioUrl = response.data.url
-        sendMessage(userId, audioUrl, "audio")
+        sendMessage(chatUserId, audioUrl, "audio")
       }
     } catch (error) {
       console.error("Failed to stop recording:", error)
@@ -298,15 +328,17 @@ const ChatScreen = () => {
       // Get duration
       const status = await sound.getStatusAsync()
 
-      setAudioPlayback({
-        ...audioPlayback,
-        [messageId]: {
-          sound,
-          duration: status.durationMillis || 0,
-          position: 0,
-          isPlaying: true,
-        },
-      })
+      if (status.isLoaded) {
+        setAudioPlayback({
+          ...audioPlayback,
+          [messageId]: {
+            sound,
+            duration: status.durationMillis || 0,
+            position: 0,
+            isPlaying: true,
+          },
+        })
+      }
     } catch (error) {
       console.error("Failed to play audio:", error)
     }
@@ -325,7 +357,7 @@ const ChatScreen = () => {
       <View style={[styles.messageContainer, isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer]}>
         {!isOwnMessage && (
           <Image
-            source={profilePic ? { uri: profilePic } : require("../../assets/icon.png")}
+            source={chatProfilePic ? { uri: chatProfilePic } : require("../../../assets/icon.png")}
             style={styles.messageAvatar}
           />
         )}
@@ -348,11 +380,10 @@ const ChatScreen = () => {
                   style={[
                     styles.audioProgress,
                     {
-                      width: `${
-                        audioPlayback[item.id]
-                          ? (audioPlayback[item.id].position / audioPlayback[item.id].duration) * 100
-                          : 0
-                      }%`,
+                      width: `${audioPlayback[item.id]
+                        ? (audioPlayback[item.id].position / audioPlayback[item.id].duration) * 100
+                        : 0
+                        }%`,
                     },
                   ]}
                 />

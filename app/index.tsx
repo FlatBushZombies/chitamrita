@@ -1,20 +1,32 @@
 "use client"
 
+import React from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from "react-native"
 import { useTheme } from "@/context/ThemeContext"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useNavigation } from "@react-navigation/native"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import { useAuth } from "@/context/AuthContext"
+import { useEffect } from "react"
 
 const WelcomeScreen = () => {
   const { colors } = useTheme()
   const navigation = useNavigation()
   const router = useRouter()
+  const { user, isLoading } = useAuth()
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (user) {
+        router.replace('/(root)/(tabs)/SearchScreen')
+      } else {
+        router.replace('/')
+      }
+    }
+  }, [user, isLoading])
 
   return (
-    
-
     <ImageBackground
       source={{
         uri: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/background.jpg-7lf5U4B2Uqi8K0YHIdgPaLEltiYIcF.jpeg",
@@ -28,21 +40,32 @@ const WelcomeScreen = () => {
               <Text style={styles.logoText}>Chitamrita</Text>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/sign-up')}>
-                <Text style={styles.headerButtonText}>sign up</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/LoginScreen')}>
-                <Text style={styles.headerButtonText}>log in</Text>
-              </TouchableOpacity>
+              {!user && (
+                <>
+                  <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/sign-up')}>
+                    <Text style={styles.headerButtonText}>sign up</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/(auth)/LoginScreen')}>
+                    <Text style={styles.headerButtonText}>log in</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              {user && (
+                <TouchableOpacity style={styles.headerButton} onPress={() => router.push('//(root)/(tabs)/SearchScreen')}>
+                  <Text style={styles.headerButtonText}>search</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.getStartedButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/(auth)/get-started')}
+              onPress={() => router.push(user ? '/' : '/(auth)/get-started')}
             >
-              <Text style={styles.getStartedText}>Swipe to get started</Text>
+              <Text style={styles.getStartedText}>
+                {user ? 'Go to Search' : 'Swipe to get started'}
+              </Text>
               <Ionicons name="arrow-forward-circle" size={24} color="white" />
             </TouchableOpacity>
 

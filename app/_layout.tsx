@@ -29,14 +29,18 @@ export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache} >
       <SafeAreaProvider>
-      <ThemeProvider>
-         <Stack>
-           <Stack.Screen name="index" options={{ headerShown: false}} />
-           <Stack.Screen name="(auth)" options={{ headerShown: false}}/>
-           <Stack.Screen name="(root)" options={{ headerShown: false}}/>
-          </Stack>
-    </ThemeProvider>
-    </SafeAreaProvider>
+        <ThemeProvider>
+          <UserProvider>
+            <SocketProvider>
+              <Stack>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen name="(root)" options={{ headerShown: false }} />
+              </Stack>
+            </SocketProvider>
+          </UserProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </ClerkProvider>
   )
 }

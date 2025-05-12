@@ -2,106 +2,120 @@
 
 import type React from "react"
 import { createContext, useState, useContext, useEffect } from "react"
-import { useUser, useAuth } from "@clerk/clerk-expo"
+import { useAuth } from "./AuthContext"
 import axios from "axios"
 import { API_URL } from "@/config/config"
 
-interface UserContextType {
-  userProfile: UserProfile | null
-  isLoadingProfile: boolean
-  refreshUserProfile: () => Promise<void>
-}
-
-interface UserProfile {
+interface User {
   id: string
   username: string
   fullName: string
-  email: string
   profilePic?: string
   followers: number
   following: number
+  isFollowing?: boolean
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined)
+interface UserContextType {
+  searchUsers: (query: string) => Promise<User[]>
+  followUser: (userId: string) => Promise<void>
+  unfollowUser: (userId: string) => Promise<void>
+  getUserProfile: (userId: string) => Promise<User>
+  loading: boolean
+  error: string | null
+}
 
-export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isLoaded: isClerkLoaded } = useUser()
-  const { getToken } = useAuth()
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
+const UserContext = createContext<UserContextType>({
+  searchUsers: async () => [],
+  followUser: async () => { },
+  unfollowUser: async () => { },
+  getUserProfile: async () => ({ id: "", username: "", fullName: "", followers: 0, following: 0 }),
+  loading: false,
+  error: null,
+})
 
-  useEffect(() => {
-    if (isClerkLoaded && user) {
-      refreshUserProfile()
-    } else if (isClerkLoaded && !user) {
-      setUserProfile(null)
-      setIsLoadingProfile(false)
-    }
-  }, [isClerkLoaded, user])
+export const UserProvider = ({ children }: { children: React.ReactNode }) => {
+  const { user: authUser } = useAuth()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const refreshUserProfile = async () => {
-    if (!user) return
-
+  const searchUsers = async (query: string): Promise<User[]> => {
     try {
-      setIsLoadingProfile(true)
-
-      // Get token for API requests
-      const token = await getToken()
-
-      // Set auth header for all future requests
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
-
-      try {
-        // Try to get existing profile
-        const response = await axios.get(`${API_URL}/users/profile`)
-        setUserProfile(response.data)
-      } catch (error) {
-        // If profile doesn't exist, create one
-        if (axios.isAxiosError(error) && error.response?.status === 404) {
-          await createUserProfile()
-        } else {
-          console.error("Failed to get user profile:", error)
-        }
-      }
-    } catch (error) {
-      console.error("Failed to refresh user profile:", error)
+      setLoading(true)
+      setError(null)
+      const response = await axios.get(`${API_URL}/users/search?query=${encodeURIComponent(query)}`)
+      return response.data
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to search users")
+      return []
     } finally {
-      setIsLoadingProfile(false)
+      setLoading(false)
     }
   }
 
-  const createUserProfile = async () => {
-    if (!user) return
-
+  const followUser = async (userId: string) => {
     try {
-      // Create profile with Clerk user data
-      const response = await axios.post(`${API_URL}/users/profile`, {
-        clerkId: user.id,
-        email: user.primaryEmailAddress?.emailAddress,
-        username: user.username || `user_${user.id.substring(0, 8)}`,
-        fullName: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-        profilePic: user.imageUrl,
-      })
-
-      setUserProfile(response.data)
-    } catch (error) {
-      console.error("Failed to create user profile:", error)
+      setLoading(true)
+      setError(null)
+      await axios.post(`${API_URL}/users/follow/${userId}`)
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to follow user")
+      throw err
+    } finally {
+      setLoading(false)
     }
   }
 
-  const value = {
-    userProfile,
-    isLoadingProfile,
-    refreshUserProfile,
+  const unfollowUser = async (userId: string) => {
+    try {
+      setLoading(true)
+      setError(null)
+      await axios.delete(`${API_URL}/users/follow/${userId}`)
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to unfollow user")
+      throw err
+    } finally {
+      setLoading(false)
+    }
   }
 
-  return <UserContext.Provider value={value}>{children}</UserContext.Provider>
+  const getUserProfile = async (userId: string): Promise<User> => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await axios.get(`${API_URL}/users/${userId}`)
+      return response.data
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to get user profile")
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <UserContext.Provider
+      value={{
+        searchUsers,
+        followUser,
+        unfollowUser,
+        getUserProfile,
+        loading,
+        error,
+      }}
+    >
+      {children}
+    </UserContext.Provider>
+  )
 }
 
-export const useUserProfile = () => {
+export const useUserContext = () => {
   const context = useContext(UserContext)
-  if (context === undefined) {
-    throw new Error("useUserProfile must be used within a UserProvider")
+  if (!context) {
+    throw new Error("useUserContext must be used within a UserProvider")
   }
   return context
 }
+
+// Alias for backward compatibility
+export const useUserProfile = useUserContext

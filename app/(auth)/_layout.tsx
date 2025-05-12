@@ -25,7 +25,6 @@ export default function RootLayout() {
     
     <Stack>
       <Stack.Screen name="get-started" options={{ headerShown: false}}  />
-      <Stack.Screen name="loginScreen" options={{ headerShown: false}}/>
       <Stack.Screen name="ForgotPassword" options={{ headerShown: false}}/>
       <Stack.Screen name="ChatListScreen" options={{ headerShown: false}}/>
       <Stack.Screen name="LoginScreen" options={{ headerShown: false}}/>

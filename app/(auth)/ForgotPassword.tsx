@@ -12,13 +12,13 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useSignIn } from "@clerk/clerk-expo"
-import { COLORS, COMMON_STYLES } from "@/config/config"
+import { COLORS } from "@/config/config"
 
 const ForgotPasswordScreen = () => {
-  const navigation = useNavigation()
+  const router = useRouter()
   const { isLoaded, signIn } = useSignIn()
 
   const [email, setEmail] = useState("")
@@ -37,25 +37,44 @@ const ForgotPasswordScreen = () => {
       setError("")
       setIsLoading(true)
 
-      // Start the password reset process with Clerk
-      await signIn.create({
+      // Start the password reset process
+      const result = await signIn.create({
         identifier: email,
       })
 
-      // Prepare the reset
-      await signIn.prepareFirstFactor({
-        strategy: "reset_password_email_code",
-        identifier: email,
-      })
+      if (result.status === "needs_first_factor" && result.supportedFirstFactors) {
+        // Prepare email verification for password reset
+        const emailFactor = result.supportedFirstFactors.find(
+          (factor) => factor.strategy === "reset_password_email_code"
+        );
 
-      // Navigate to verification screen
-      navigation.navigate("Verification", {
-        email,
-        verificationStep: "reset",
-      })
-    } catch (err) {
+        if (emailFactor) {
+          await signIn.prepareFirstFactor({
+            strategy: "reset_password_email_code",
+            emailAddressId: emailFactor.emailAddressId,
+          });
+
+          // Navigate to verification screen
+          router.push({
+            pathname: "/(auth)/verification",
+            params: {
+              email,
+              verificationStrategy: "reset_password_email_code",
+            },
+          });
+        } else {
+          setError("Email verification not available. Please try again.");
+        }
+      } else {
+        setError("Failed to initiate password reset. Please try again.");
+      }
+    } catch (err: any) {
       console.error("Error during password reset:", err)
-      setError(err.errors?.[0]?.message || "Failed to send reset code. Please try again.")
+      if (err.errors?.[0]?.code === "form_identifier_not_found") {
+        setError("No account found with this email. Please check your input.")
+      } else {
+        setError(err.errors?.[0]?.message || "Failed to send reset code. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -147,23 +166,35 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   inputContainer: {
-    ...COMMON_STYLES.inputContainer,
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    height: 50,
+    marginBottom: 15,
   },
   input: {
-    ...COMMON_STYLES.input,
     flex: 1,
+    height: 50,
+    color: COLORS.text,
+    fontSize: 16,
   },
   inputIcon: {
     marginLeft: 10,
   },
   sendButton: {
-    ...COMMON_STYLES.button,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 20,
   },
   sendButtonText: {
-    ...COMMON_STYLES.buttonText,
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "600",
   },
 })
 

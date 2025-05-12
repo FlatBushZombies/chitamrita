@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   View,
   Text,
@@ -10,25 +10,35 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native"
 import { useTheme } from "@/context/ThemeContext"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useNavigation } from "@react-navigation/native"
-import { useSignIn } from "@clerk/clerk-expo"
+import { useSignIn, useAuth as useClerkAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import { useAuth } from "@/context/AuthContext"
 
 const SignInScreen = () => {
   const { colors } = useTheme()
   const navigation = useNavigation()
   const { signIn, setActive, isLoaded } = useSignIn()
+  const { isSignedIn } = useClerkAuth()
   const router = useRouter()
+  const { user, isLoading } = useAuth()
 
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/(root)/(tabs)/SearchScreen')
+    }
+  }, [user, isLoading])
 
   const handleSignIn = async () => {
     if (!isLoaded) {
@@ -50,6 +60,12 @@ const SignInScreen = () => {
     setError("")
 
     try {
+      // If there's an existing session, clear it first
+      if (isSignedIn) {
+        await setActive({ session: null })
+      }
+
+      // Create a new sign-in attempt
       const result = await signIn.create({
         identifier,
         password,
@@ -57,7 +73,7 @@ const SignInScreen = () => {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId })
-        router.replace('/HomeScreen')
+        router.replace('/(root)/(tabs)/SearchScreen')
       } else if (result.status === "needs_first_factor") {
         router.push({
           pathname: "/(auth)/verification",
@@ -83,6 +99,14 @@ const SignInScreen = () => {
         setError("Please enter your identifier (email or username).")
       } else if (err.errors?.[0]?.code === "form_password_required") {
         setError("Please enter your password.")
+      } else if (err.errors?.[0]?.code === "session_exists") {
+        // Handle existing session
+        try {
+          await setActive({ session: null })
+          setError("Please try signing in again.")
+        } catch (sessionErr) {
+          setError("There was an error with your session. Please try again.")
+        }
       } else {
         setError(err.errors?.[0]?.message || "Failed to sign in. Please check your credentials and try again.")
       }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   View,
   Text,
@@ -15,13 +15,17 @@ import {
 } from "react-native"
 import { useTheme } from "@/context/ThemeContext"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { useSignUp } from "@clerk/clerk-expo"
+import { useSignUp, useAuth as useClerkAuth} from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { router } from "expo-router"
+import { useAuth } from "@/context/AuthContext"
 
 const SignUpScreen = () => {
   const { colors } = useTheme()
   const { signUp, isLoaded } = useSignUp()
+  const { isSignedIn } = useClerkAuth()
+  const { signOut } = useClerkAuth()
+  const { user, isLoading } = useAuth()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -31,6 +35,12 @@ const SignUpScreen = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/(root)/(tabs)/SearchScreen')
+    }
+  }, [user, isLoading])
 
   const handleSignUp = async () => {
     if (!isLoaded) {
@@ -72,31 +82,42 @@ const SignUpScreen = () => {
     setError("")
 
     try {
-      // Create the user account (latest Clerk API)
+      // Force sign-out if user is already signed in
+      if (isSignedIn) {
+        await signOut()
+        // Small delay to ensure sign-out completes
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+
+      // Create the user account
       const result = await signUp.create({
         emailAddress: email.trim(),
         password: password.trim(),
         username: username.trim(),
-        firstName: firstName.trim(), // ✅ Now supported in latest Clerk
-        lastName: lastName.trim(),   // ✅ Now supported in latest Clerk
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
       })
 
       // Handle different sign-up statuses
       if (result.status === "complete") {
-        router.replace('/HomeScreen')
+        router.replace('/(root)/(tabs)/SearchScreen')
       } else if (result.status === "missing_requirements") {
+        // Prepare email verification
+        await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
+        // Navigate to verification screen
         router.push({
           pathname: "/(auth)/verification",
           params: {
             email: email.trim(),
-            verificationStrategy: "email_code",
+            verificationStrategy: "sign_up",
           },
         })
       } else {
         setError("Sign up was not completed. Please try again.")
       }
     } catch (err: any) {
-      console.error("Error signing up:", JSON.stringify(err, null, 2))
+      console.error("Error signing up:", err)
 
       // Handle Clerk errors
       if (err.errors?.[0]?.code === "form_identifier_exists") {
@@ -222,7 +243,6 @@ const SignUpScreen = () => {
   )
 }
 
-// Keep your existing styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,

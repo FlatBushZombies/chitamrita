@@ -1,8 +1,10 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { useColorScheme } from "react-native"
+import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-expo"
+import { router } from "expo-router"
 
 type Theme = "light" | "dark" | "system"
 
@@ -52,6 +54,73 @@ export const useTheme = () => {
   const context = useContext(ThemeContext)
   if (context === undefined) {
     throw new Error("useTheme must be used within a ThemeProvider")
+  }
+  return context
+}
+
+interface User {
+  id: string
+  username: string
+  fullName: string
+  profilePic?: string
+  email: string
+}
+
+interface AuthContextType {
+  user: User | null
+  isLoading: boolean
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+  signOut: async () => { },
+})
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const { isLoaded, signOut: clerkSignOut } = useClerkAuth()
+  const { user: clerkUser, isLoaded: isUserLoaded } = useUser()
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (isLoaded && isUserLoaded) {
+      if (clerkUser) {
+        setUser({
+          id: clerkUser.id,
+          username: clerkUser.username || "",
+          fullName: `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim(),
+          profilePic: clerkUser.imageUrl,
+          email: clerkUser.primaryEmailAddress?.emailAddress || "",
+        })
+      } else {
+        setUser(null)
+      }
+      setIsLoading(false)
+    }
+  }, [isLoaded, isUserLoaded, clerkUser])
+
+  const signOut = async () => {
+    try {
+      await clerkSignOut()
+      router.replace("/(auth)/LoginScreen")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider")
   }
   return context
 }
