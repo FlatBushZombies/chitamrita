@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native"
 import type { ClerkUser } from "@/lib/clerk"
-import { followUser, unfollowUser } from "@/lib/follow-service"
 import { useAuth } from "@clerk/clerk-expo"
 
 interface UserItemProps {
@@ -11,26 +10,32 @@ interface UserItemProps {
   onFollowStatusChange?: (userId: string, isFollowing: boolean) => void
 }
 
+const API_BASE_URL = "https://chitamrita-backend.vercel.app/api";
+
 export default function UserItem({ user, onFollowStatusChange }: UserItemProps) {
   const { userId } = useAuth()
   const [isFollowing, setIsFollowing] = useState(user.isFollowing || false)
   const [isLoading, setIsLoading] = useState(false)
 
   const handleFollowToggle = async () => {
-    if (!userId) return
-
+    if (!userId || userId === user.id) return
     setIsLoading(true)
     try {
       if (isFollowing) {
-        await unfollowUser(userId, user.id)
+        await fetch(`${API_BASE_URL}/users/${user.id}/unfollow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ followerId: userId }),
+        })
       } else {
-        await followUser(userId, user.id)
+        await fetch(`${API_BASE_URL}/users/${user.id}/follow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ followerId: userId }),
+        })
       }
-
       setIsFollowing(!isFollowing)
-      if (onFollowStatusChange) {
-        onFollowStatusChange(user.id, !isFollowing)
-      }
+      if (onFollowStatusChange) onFollowStatusChange(user.id, !isFollowing)
     } catch (error) {
       console.error("Error toggling follow:", error)
     } finally {
@@ -46,17 +51,19 @@ export default function UserItem({ user, onFollowStatusChange }: UserItemProps) 
         <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
         <Text style={styles.userName}>{displayName}</Text>
       </View>
-      <TouchableOpacity
-        style={[
-          styles.followButton,
-          isFollowing ? styles.followingButton : null,
-          isLoading ? styles.disabledButton : null,
-        ]}
-        onPress={handleFollowToggle}
-        disabled={isLoading}
-      >
-        <Text style={styles.followButtonText}>{isFollowing ? "Following" : "Follow"}</Text>
-      </TouchableOpacity>
+      {userId !== user.id && (
+        <TouchableOpacity
+          style={[
+            styles.followButton,
+            isFollowing ? styles.followingButton : null,
+            isLoading ? styles.disabledButton : null,
+          ]}
+          onPress={handleFollowToggle}
+          disabled={isLoading}
+        >
+          <Text style={styles.followButtonText}>{isLoading ? "..." : isFollowing ? "Following" : "Follow"}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }

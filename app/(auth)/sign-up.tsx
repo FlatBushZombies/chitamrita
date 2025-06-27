@@ -15,7 +15,7 @@ import {
 } from "react-native"
 import { useTheme } from "@/context/ThemeContext"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { useSignUp, useAuth as useClerkAuth} from "@clerk/clerk-expo"
+import { useSignUp, useAuth as useClerkAuth, useUser } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { router } from "expo-router"
 import { useAuth } from "@/context/AuthContext"
@@ -26,6 +26,7 @@ const SignUpScreen = () => {
   const { isSignedIn } = useClerkAuth()
   const { signOut } = useClerkAuth()
   const { user, isLoading } = useAuth()
+  const { user: clerkUser } = useUser()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -100,6 +101,14 @@ const SignUpScreen = () => {
 
       // Handle different sign-up statuses
       if (result.status === "complete") {
+        // Wait for Clerk user to be available
+        let attempts = 0
+        let clerkUserData = clerkUser
+        while (!clerkUserData && attempts < 10) {
+          await new Promise(res => setTimeout(res, 300))
+          clerkUserData = clerkUser
+          attempts++
+        }
         router.replace('/(root)/(tabs)/SearchScreen')
       } else if (result.status === "missing_requirements") {
         // Prepare email verification

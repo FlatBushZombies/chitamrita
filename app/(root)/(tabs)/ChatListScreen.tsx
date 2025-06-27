@@ -19,6 +19,10 @@ import { useAuth } from "@/context/AuthContext"
 import { useSocket } from "@/context/SocketContext"
 import { images } from "@/constants/images"
 import { router } from "expo-router"
+import { apiService, User } from "@/lib/api"
+import { useApiService } from "@/lib/api"
+import { useUser } from "@clerk/clerk-expo"
+import UserItem from "@/components/user-item"
 
 interface ChatPreview {
   id: string
@@ -33,14 +37,19 @@ interface ChatPreview {
 
 const ChatListScreen = () => {
   const navigation = useNavigation()
-  const { user, token } = useAuth()
+  const { user } = useAuth()
   const { socket } = useSocket()
+  const apiService = useApiService()
+  const { user: clerkUser } = useUser()
 
   const [chats, setChats] = useState<ChatPreview[]>([])
   const [loading, setLoading] = useState(true)
+  const [followedUsers, setFollowedUsers] = useState<User[]>([])
+  const [loadingFollows, setLoadingFollows] = useState(true)
 
   useEffect(() => {
     loadChats()
+    loadFollowedUsers()
 
     if (socket) {
       socket.on("update_chat_list", loadChats)
@@ -54,9 +63,7 @@ const ChatListScreen = () => {
   const loadChats = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_URL}/chats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await axios.get(`${API_URL}/chats`)
       setChats(response.data)
     } catch (error) {
       console.error("Failed to load chats:", error)
@@ -65,9 +72,33 @@ const ChatListScreen = () => {
     }
   }
 
+  const loadFollowedUsers = async () => {
+    try {
+      setLoadingFollows(true)
+      const userIds = await apiService.getFollowingUsers()
+      if (userIds.length > 0) {
+        const users = await apiService.getUsersBatch(userIds)
+        // Fetch last message for each user
+        const usersWithLastMessage = await Promise.all(
+          users.map(async (u) => {
+            const lastMessage = await apiService.getLastMessage(u.id)
+            return { ...u, lastMessage }
+          })
+        )
+        setFollowedUsers(usersWithLastMessage)
+      } else {
+        setFollowedUsers([])
+      }
+    } catch (error) {
+      setFollowedUsers([])
+    } finally {
+      setLoadingFollows(false)
+    }
+  }
+
   const navigateToChat = (userId: string, username: string, profilePic?: string) => {
     router.push({
-      pathname: "/(auth)/ChatListScreen",
+      pathname: "/ChatListScreen",
       params: { userId, username, profilePic: profilePic || '' }
     });
   };
@@ -105,7 +136,7 @@ const ChatListScreen = () => {
       style={styles.chatItem}
       onPress={() => navigateToChat(item.userId, item.username, item.profilePic)}
     >
-      
+
       <View style={styles.chatInfo}>
         <View style={styles.chatHeader}>
           <Text style={styles.chatName}>{item.fullName}</Text>
@@ -121,6 +152,17 @@ const ChatListScreen = () => {
             </View>
           )}
         </View>
+      </View>
+    </TouchableOpacity>
+  )
+
+  const renderUserCard = ({ item }: { item: User & { lastMessage?: any } }) => (
+    <TouchableOpacity style={styles.card}>
+      <View style={styles.cardInfo}>
+        <UserItem user={item} />
+        <Text style={styles.lastMessage} numberOfLines={1}>
+          {item.lastMessage?.content || "No messages yet."}
+        </Text>
       </View>
     </TouchableOpacity>
   )
@@ -167,11 +209,33 @@ const ChatListScreen = () => {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No conversations yet</Text>
-              <TouchableOpacity style={styles.startChatButton} onPress={() => router.push("/(auth)/SearchScreen")}>
+              <TouchableOpacity style={styles.startChatButton} onPress={() => router.push("/SearchScreen")}>
                 <Text style={styles.startChatButtonText}>Find people to chat with</Text>
               </TouchableOpacity>
             </View>
           }
+        />
+      )}
+
+      {loadingFollows ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      ) : followedUsers.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="people-outline" size={64} color={COLORS.primary} style={{ marginBottom: 16 }} />
+          <Text style={styles.emptyText}>You're not following anyone yet!</Text>
+          <Text style={styles.emptySubText}>Start following people to see them here and chat with them.</Text>
+          <TouchableOpacity style={styles.startChatButton} onPress={() => router.push("/SearchScreen")}>
+            <Text style={styles.startChatButtonText}>Find people to follow</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={followedUsers}
+          renderItem={renderUserCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.chatList}
         />
       )}
     </SafeAreaView>
@@ -291,6 +355,52 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 14,
     fontWeight: "500",
+  },
+  userItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border || "#1F2937",
+    paddingHorizontal: 20,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    color: COLORS.text || "white",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  userHandle: {
+    color: "#9CA3AF",
+    fontSize: 14,
+  },
+  emptySubText: {
+    color: "#9CA3AF",
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  card: {
+    backgroundColor: "#1e1e1e",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: "column",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  cardInfo: {
+    flexDirection: "column",
+  },
+  lastMessage: {
+    color: "#a0a0a0",
+    fontSize: 14,
+    marginTop: 8,
   },
 })
 

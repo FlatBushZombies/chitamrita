@@ -18,7 +18,6 @@ import { useNavigation } from "@react-navigation/native"
 import { useSignIn, useAuth as useClerkAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
-import { useAuth } from "@/context/AuthContext"
 
 const SignInScreen = () => {
   const { colors } = useTheme()
@@ -26,7 +25,6 @@ const SignInScreen = () => {
   const { signIn, setActive, isLoaded } = useSignIn()
   const { isSignedIn } = useClerkAuth()
   const router = useRouter()
-  const { user, isLoading } = useAuth()
 
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
@@ -35,10 +33,10 @@ const SignInScreen = () => {
   const [error, setError] = useState("")
 
   useEffect(() => {
-    if (!isLoading && user) {
-      router.replace('/(root)/(tabs)/SearchScreen')
-    }
-  }, [user, isLoading])
+    // Remove: if (!isLoading && user) {
+    //   router.replace('/(root)/(tabs)/SearchScreen')
+    // }
+  }, [])
 
   const handleSignIn = async () => {
     if (!isLoaded) {
