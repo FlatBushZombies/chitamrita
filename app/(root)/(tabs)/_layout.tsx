@@ -27,17 +27,17 @@ export default function AppLayout() {
         options={{
           tabBarIcon: ({ color, size, focused }) => (
             <View style={focused ? styles.activeTab : {}}>
-              <Ionicons name="home" size={size} color={color} />
+              <Ionicons name="search" size={size} color={color} />
             </View>
           ),
         }}
       />
       <Tabs.Screen
-        name="messages"
+        name="ChatListScreen"
         options={{
           tabBarIcon: ({ color, size, focused }) => (
             <View style={focused ? styles.activeTab : {}}>
-              <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
+              <Ionicons name="chatbubbles-outline" size={size} color={color} />
             </View>
           ),
         }}
@@ -53,13 +53,9 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="ChatListScreen"
+        name="ChatScreen"
         options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <View style={focused ? styles.activeTab : {}}>
-              <Ionicons name="notifications-outline" size={size} color={color} />
-            </View>
-          ),
+          href: null, // Hide from tab bar
         }}
       />
       <Tabs.Screen

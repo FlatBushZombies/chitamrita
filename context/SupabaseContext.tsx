@@ -1,13 +1,26 @@
 "use client"
 
-import { createContext } from "react"
+import React, { createContext, useContext, ReactNode } from "react"
+import { followService } from "@/lib/supabase"
 
-const SupabaseContext = createContext({})
-
-export const SupabaseProvider = ({ children }: { children: React.ReactNode }) => {
-  return <SupabaseContext.Provider value={{}}>{children}</SupabaseContext.Provider>
+interface SupabaseContextType {
+  followService: typeof followService
 }
 
-export const useSupabase = () => {
-  throw new Error("Supabase has been removed from this app.")
+const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined)
+
+export function SupabaseProvider({ children }: { children: ReactNode }) {
+  return (
+    <SupabaseContext.Provider value={{ followService }}>
+      {children}
+    </SupabaseContext.Provider>
+  )
+}
+
+export function useSupabase() {
+  const context = useContext(SupabaseContext)
+  if (context === undefined) {
+    throw new Error("useSupabase must be used within a SupabaseProvider")
+  }
+  return context
 }

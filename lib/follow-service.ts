@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { API_BASE_URL } from "@/config/api"
 
 // In a real app, this would be stored in a database
 // For this example, we'll use AsyncStorage
@@ -8,74 +8,132 @@ interface FollowRelationship {
   followingId: string
 }
 
-export async function followUser(currentUserId: string, userToFollowId: string): Promise<boolean> {
-  try {
-    // Get existing follows
-    const followsJson = await AsyncStorage.getItem("follows")
-    const follows: FollowRelationship[] = followsJson ? JSON.parse(followsJson) : []
+export class FollowService {
+  async followUser(currentUserId: string, userToFollowId: string): Promise<boolean> {
+    try {
+      console.log(`Following user: ${userToFollowId} by user: ${currentUserId}`)
+      console.log(`Using API URL: ${API_BASE_URL}/follow`)
 
-    // Check if already following
-    const alreadyFollowing = follows.some((f) => f.followerId === currentUserId && f.followingId === userToFollowId)
+      const response = await fetch(`${API_BASE_URL}/follow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          followerId: currentUserId,
+          followingId: userToFollowId,
+        }),
+      })
 
-    if (alreadyFollowing) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error(`Follow API error: ${response.status} - ${errorData.message || 'Unknown error'}`)
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('Follow response:', result)
       return true
+    } catch (error) {
+      console.error("Error following user:", error)
+      throw error
     }
+  }
 
-    // Add new follow relationship
-    follows.push({
-      followerId: currentUserId,
-      followingId: userToFollowId,
-    })
+  async unfollowUser(currentUserId: string, userToUnfollowId: string): Promise<boolean> {
+    try {
+      console.log(`Unfollowing user: ${userToUnfollowId} by user: ${currentUserId}`)
+      console.log(`Using API URL: ${API_BASE_URL}/unfollow`)
 
-    // Save updated follows
-    await AsyncStorage.setItem("follows", JSON.stringify(follows))
-    return true
-  } catch (error) {
-    console.error("Error following user:", error)
-    return false
+      const response = await fetch(`${API_BASE_URL}/unfollow`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          followerId: currentUserId,
+          followingId: userToUnfollowId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error(`Unfollow API error: ${response.status} - ${errorData.message || 'Unknown error'}`)
+        throw new Error(errorData.message || `HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('Unfollow response:', result)
+      return true
+    } catch (error) {
+      console.error("Error unfollowing user:", error)
+      throw error
+    }
+  }
+
+  async isFollowing(currentUserId: string, userId: string): Promise<boolean> {
+    try {
+      console.log(`Checking if ${currentUserId} is following ${userId}`)
+      console.log(`Using API URL: ${API_BASE_URL}/follow/status`)
+
+      const response = await fetch(`${API_BASE_URL}/follow/status?followerId=${currentUserId}&followingId=${userId}`)
+
+      if (!response.ok) {
+        console.log(`Follow status check failed: ${response.status}`)
+        return false
+      }
+
+      const result = await response.json()
+      console.log('Follow status response:', result)
+      return result.isFollowing || false
+    } catch (error) {
+      console.error("Error checking following status:", error)
+      return false
+    }
+  }
+
+  async getFollowedUsers(currentUserId: string): Promise<string[]> {
+    try {
+      console.log(`Getting followed users for: ${currentUserId}`)
+      console.log(`Using API URL: ${API_BASE_URL}/follow/following`)
+
+      const response = await fetch(`${API_BASE_URL}/follow/following?userId=${currentUserId}`)
+
+      if (!response.ok) {
+        console.log(`Get followed users failed: ${response.status}`)
+        return []
+      }
+
+      const result = await response.json()
+      console.log('Followed users response:', result)
+      return result.following || []
+    } catch (error) {
+      console.error("Error getting followed users:", error)
+      return []
+    }
+  }
+
+  async getFollowers(currentUserId: string): Promise<string[]> {
+    try {
+      console.log(`Getting followers for: ${currentUserId}`)
+      console.log(`Using API URL: ${API_BASE_URL}/follow/followers`)
+
+      const response = await fetch(`${API_BASE_URL}/follow/followers?userId=${currentUserId}`)
+
+      if (!response.ok) {
+        console.log(`Get followers failed: ${response.status}`)
+        return []
+      }
+
+      const result = await response.json()
+      console.log('Followers response:', result)
+      return result.followers || []
+    } catch (error) {
+      console.error("Error getting followers:", error)
+      return []
+    }
   }
 }
 
-export async function unfollowUser(currentUserId: string, userToUnfollowId: string): Promise<boolean> {
-  try {
-    // Get existing follows
-    const followsJson = await AsyncStorage.getItem("follows")
-    const follows: FollowRelationship[] = followsJson ? JSON.parse(followsJson) : []
-
-    // Filter out the relationship
-    const updatedFollows = follows.filter(
-      (f) => !(f.followerId === currentUserId && f.followingId === userToUnfollowId),
-    )
-
-    // Save updated follows
-    await AsyncStorage.setItem("follows", JSON.stringify(updatedFollows))
-    return true
-  } catch (error) {
-    console.error("Error unfollowing user:", error)
-    return false
-  }
-}
-
-export async function getFollowingStatus(currentUserId: string, userId: string): Promise<boolean> {
-  try {
-    const followsJson = await AsyncStorage.getItem("follows")
-    const follows: FollowRelationship[] = followsJson ? JSON.parse(followsJson) : []
-
-    return follows.some((f) => f.followerId === currentUserId && f.followingId === userId)
-  } catch (error) {
-    console.error("Error getting following status:", error)
-    return false
-  }
-}
-
-export async function getFollowedUsers(currentUserId: string): Promise<string[]> {
-  try {
-    const followsJson = await AsyncStorage.getItem("follows")
-    const follows: FollowRelationship[] = followsJson ? JSON.parse(followsJson) : []
-
-    return follows.filter((f) => f.followerId === currentUserId).map((f) => f.followingId)
-  } catch (error) {
-    console.error("Error getting followed users:", error)
-    return []
-  }
-}
+// Export a singleton instance
+export const followService = new FollowService()

@@ -11,7 +11,7 @@ const API_BASE_URL = "https://chitamrita-backend.vercel.app/api";
 export default function SearchScreen() {
   const { user } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
 
@@ -28,15 +28,26 @@ export default function SearchScreen() {
       fetch(`${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
-          setUsers(data.users || [])
+          setUsers(data.users || data || [])
         })
-        .catch(() => setUsers([]))
+        .catch((error) => {
+          console.error('Search error:', error)
+          setUsers([])
+        })
         .finally(() => setLoading(false))
     }, 400)
   }
 
+  const handleFollowStatusChange = (userId: string, isFollowing: boolean) => {
+    setUsers((prevUsers) =>
+      prevUsers.map((u) =>
+        u.id === userId ? { ...u, isFollowing } : u
+      )
+    )
+  }
+
   const renderUser = ({ item }: { item: any }) => (
-    <UserItem user={item} />
+    <UserItem user={item} onFollowStatusChange={handleFollowStatusChange} />
   )
 
   return (

@@ -188,6 +188,105 @@ class ApiService {
     return response.conversations || []
   }
 
+  // New method to get all users with their last messages for chat list
+  async getAllUsersWithLastMessages(): Promise<Array<User & { lastMessage?: Message }>> {
+    try {
+      // First get all users
+      const allUsersResponse = await fetch("https://chitamrita-backend.vercel.app/api/users")
+      if (!allUsersResponse.ok) {
+        throw new Error(`Failed to fetch users: ${allUsersResponse.status}`)
+      }
+      const allUsersData = await allUsersResponse.json()
+      const users = allUsersData.users || []
+
+      // Then get last message for each user
+      const usersWithMessages = await Promise.all(
+        users.map(async (user: User) => {
+          try {
+            const lastMessage = await this.getLastMessage(user.id)
+            return { ...user, lastMessage }
+          } catch (error) {
+            console.error(`Failed to get last message for user ${user.id}:`, error)
+            return { ...user, lastMessage: null }
+          }
+        })
+      )
+
+      return usersWithMessages
+    } catch (error) {
+      console.error("Failed to get users with last messages:", error)
+      return []
+    }
+  }
+
+  // Get all Clerk users for chat list
+  async getAllClerkUsers(): Promise<User[]> {
+    try {
+      const response = await fetch("https://chitamrita-backend.vercel.app/api/users")
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`)
+      }
+      const data = await response.json()
+      return data.users || []
+    } catch (error) {
+      console.error("Failed to get all Clerk users:", error)
+      return []
+    }
+  }
+
+  // Get conversation between two users
+  async getConversationBetweenUsers(userId1: string, userId2: string): Promise<Message[]> {
+    try {
+      const response = await fetch(`https://chitamrita-backend.vercel.app/api/messages/conversation?user1=${userId1}&user2=${userId2}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversation: ${response.status}`)
+      }
+      const data = await response.json()
+      return data.messages || []
+    } catch (error) {
+      console.error("Failed to get conversation:", error)
+      return []
+    }
+  }
+
+  // Send a message
+  async sendMessageToUser(receiverId: string, content: string): Promise<Message | null> {
+    try {
+      const response = await fetch("https://chitamrita-backend.vercel.app/api/messages/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiver_id: receiverId,
+          content,
+          message_type: "text"
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.message || null
+    } catch (error) {
+      console.error("Failed to send message:", error)
+      return null
+    }
+  }
+
+  // Mark messages as read
+  async markMessagesAsReadForUser(senderId: string): Promise<void> {
+    try {
+      await fetch("https://chitamrita-backend.vercel.app/api/messages/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender_id: senderId })
+      })
+    } catch (error) {
+      console.error("Failed to mark messages as read:", error)
+    }
+  }
+
   async markMessagesAsRead(senderId: string): Promise<void> {
     await this.request("/messages/mark-read", {
       method: "POST",

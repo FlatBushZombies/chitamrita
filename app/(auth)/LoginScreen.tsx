@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { useNavigation } from "@react-navigation/native"
 import { useSignIn, useAuth as useClerkAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
+import { AuthGuard } from "@/components/AuthGuard"
 
 const SignInScreen = () => {
   const { colors } = useTheme()
@@ -31,12 +32,6 @@ const SignInScreen = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    // Remove: if (!isLoading && user) {
-    //   router.replace('/(root)/(tabs)/SearchScreen')
-    // }
-  }, [])
 
   const handleSignIn = async () => {
     if (!isLoaded) {
@@ -118,71 +113,73 @@ const SignInScreen = () => {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-          <View style={styles.logoContainer}>
-            <View style={[styles.logo, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome back</Text>
-            <Text style={[styles.nameText, { color: colors.text }]}>Chitamrita</Text>
-            <Text style={[styles.infoText, { color: colors.placeholder }]}>Please fill in your information</Text>
-          </View>
-
-          <View style={styles.formContainer}>
-            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Phone number, username, or email"
-                placeholderTextColor={colors.placeholder}
-                value={identifier}
-                onChangeText={setIdentifier}
-                autoCapitalize="none"
-              />
-              <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
+    <AuthGuard>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+          <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={styles.logoContainer}>
+              <View style={[styles.logo, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.welcomeText, { color: colors.text }]}>Welcome back</Text>
+              <Text style={[styles.nameText, { color: colors.text }]}>Chitamrita</Text>
+              <Text style={[styles.infoText, { color: colors.placeholder }]}>Please fill in your information</Text>
             </View>
 
-            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="Password"
-                placeholderTextColor={colors.placeholder}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.inputIcon}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={colors.placeholder}
+            <View style={styles.formContainer}>
+              <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Phone number, username, or email"
+                  placeholderTextColor={colors.placeholder}
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  autoCapitalize="none"
                 />
+                <Ionicons name="person-outline" size={20} color={colors.placeholder} style={styles.inputIcon} />
+              </View>
+
+              <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="Password"
+                  placeholderTextColor={colors.placeholder}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.inputIcon}>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={colors.placeholder}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordContainer}>
+                <Text style={[styles.forgotPasswordText, { color: colors.placeholder }]}>Forgot password?</Text>
               </TouchableOpacity>
-            </View>
 
-            <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPasswordContainer}>
-              <Text style={[styles.forgotPasswordText, { color: colors.placeholder }]}>Forgot password?</Text>
-            </TouchableOpacity>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <TouchableOpacity
-              style={[styles.signInButton, { backgroundColor: colors.primary }]}
-              onPress={handleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.signInButtonText}>{loading ? "Signing in..." : "Done"}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.signUpContainer}>
-              <Text style={[styles.signUpText, { color: colors.placeholder }]}>Don't have an account?</Text>
-              <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
-                <Text style={[styles.signUpLink, { color: colors.primary }]} > Sign up</Text>
+              <TouchableOpacity
+                style={[styles.signInButton, { backgroundColor: colors.primary }]}
+                onPress={handleSignIn}
+                disabled={loading}
+              >
+                <Text style={styles.signInButtonText}>{loading ? "Signing in..." : "Done"}</Text>
               </TouchableOpacity>
+
+              <View style={styles.signUpContainer}>
+                <Text style={[styles.signUpText, { color: colors.placeholder }]}>Don't have an account?</Text>
+                <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+                  <Text style={[styles.signUpLink, { color: colors.primary }]} > Sign up</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </SafeAreaView>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </SafeAreaView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthGuard>
   )
 }
 
@@ -239,8 +236,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#EF4444",
-    marginTop: 10,
+    fontSize: 14,
     textAlign: "center",
+    marginBottom: 16,
   },
   signInButton: {
     height: 50,

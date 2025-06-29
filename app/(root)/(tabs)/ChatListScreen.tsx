@@ -8,399 +8,333 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect } from "@react-navigation/native"
+import * as React from "react"
 import { Ionicons } from "@expo/vector-icons"
-import axios from "axios"
-import { API_URL, COLORS } from "@/config/config"
-import { useAuth } from "@/context/AuthContext"
-import { useSocket } from "@/context/SocketContext"
-import { images } from "@/constants/images"
-import { router } from "expo-router"
-import { apiService, User } from "@/lib/api"
-import { useApiService } from "@/lib/api"
 import { useUser } from "@clerk/clerk-expo"
-import UserItem from "@/components/user-item"
+import { router } from "expo-router"
 
-interface ChatPreview {
+interface ChatUser {
   id: string
-  userId: string
+  firstName: string
+  lastName: string
   username: string
-  fullName: string
-  profilePic?: string
-  lastMessage: string
-  lastMessageTime: string
-  unreadCount: number
+  imageUrl: string
+  email: string
 }
 
 const ChatListScreen = () => {
-  const navigation = useNavigation()
-  const { user } = useAuth()
-  const { socket } = useSocket()
-  const apiService = useApiService()
-  const { user: clerkUser } = useUser()
+  const { user: currentUser } = useUser()
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([])
+  const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const [chats, setChats] = useState<ChatPreview[]>([])
-  const [loading, setLoading] = useState(true)
-  const [followedUsers, setFollowedUsers] = useState<User[]>([])
-  const [loadingFollows, setLoadingFollows] = useState(true)
-
-  useEffect(() => {
-    loadChats()
-    loadFollowedUsers()
-
-    if (socket) {
-      socket.on("update_chat_list", loadChats)
-
-      return () => {
-        socket.off("update_chat_list", loadChats)
-      }
-    }
-  }, [socket])
-
-  const loadChats = async () => {
+  const loadAllUsers = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_URL}/chats`)
-      setChats(response.data)
+      setError(null)
+      console.log("Loading all users from backend...")
+
+      // Try to get all users from the backend
+      const response = await fetch("https://chitamrita-backend.vercel.app/api/users")
+
+      if (response.status === 404) {
+        // Endpoint doesn't exist, show message to search for users
+        setError("No users loaded. Search for people to start chatting!")
+        setChatUsers([])
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log("Backend response:", data)
+
+      const allUsers = data.users || []
+      console.log("All users from backend:", allUsers)
+
+      // Filter out current user
+      const filteredUsers = allUsers.filter((user: any) => user.id !== currentUser?.id)
+      console.log("Filtered users (excluding current user):", filteredUsers)
+
+      setChatUsers(filteredUsers)
     } catch (error) {
-      console.error("Failed to load chats:", error)
+      console.error("Failed to load users:", error)
+      setError("Failed to load users. Please try again later.")
+      setChatUsers([])
     } finally {
       setLoading(false)
     }
   }
 
-  const loadFollowedUsers = async () => {
-    try {
-      setLoadingFollows(true)
-      const userIds = await apiService.getFollowingUsers()
-      if (userIds.length > 0) {
-        const users = await apiService.getUsersBatch(userIds)
-        // Fetch last message for each user
-        const usersWithLastMessage = await Promise.all(
-          users.map(async (u) => {
-            const lastMessage = await apiService.getLastMessage(u.id)
-            return { ...u, lastMessage }
-          })
-        )
-        setFollowedUsers(usersWithLastMessage)
-      } else {
-        setFollowedUsers([])
-      }
-    } catch (error) {
-      setFollowedUsers([])
-    } finally {
-      setLoadingFollows(false)
-    }
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadAllUsers()
+    setRefreshing(false)
   }
 
-  const navigateToChat = (userId: string, username: string, profilePic?: string) => {
+  // Refresh list when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("ChatListScreen focused - loading all users")
+      loadAllUsers()
+    }, [])
+  )
+
+  const navigateToChat = (userId: string, username: string, imageUrl: string) => {
     router.push({
-      pathname: "/ChatListScreen",
-      params: { userId, username, profilePic: profilePic || '' }
-    });
-  };
-
-
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-
-    // Today
-    if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    }
-
-    // Yesterday
-    const yesterday = new Date(now)
-    yesterday.setDate(now.getDate() - 1)
-    if (date.toDateString() === yesterday.toDateString()) {
-      return "yesterday"
-    }
-
-    // Within a week
-    const oneWeekAgo = new Date(now)
-    oneWeekAgo.setDate(now.getDate() - 7)
-    if (date > oneWeekAgo) {
-      return date.toLocaleDateString([], { weekday: "short" })
-    }
-
-    // Older
-    return date.toLocaleDateString([], { month: "short", day: "numeric" })
+      pathname: "/ChatScreen",
+      params: {
+        userId,
+        username,
+        profilePic: imageUrl
+      }
+    })
   }
 
-  const renderChatItem = ({ item }: { item: ChatPreview }) => (
-    <TouchableOpacity
-      style={styles.chatItem}
-      onPress={() => navigateToChat(item.userId, item.username, item.profilePic)}
-    >
+  const renderChatItem = ({ item }: { item: ChatUser }) => {
+    const displayName = item.firstName && item.lastName
+      ? `${item.firstName} ${item.lastName}`
+      : item.username
 
-      <View style={styles.chatInfo}>
-        <View style={styles.chatHeader}>
-          <Text style={styles.chatName}>{item.fullName}</Text>
-          <Text style={styles.chatTime}>{formatTime(item.lastMessageTime)}</Text>
+    return (
+      <TouchableOpacity
+        style={styles.chatItem}
+        onPress={() => navigateToChat(item.id, item.username, item.imageUrl)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.avatar}
+            defaultSource={require("../../../assets/icon.png")}
+          />
+          <View style={styles.onlineIndicator} />
         </View>
-        <View style={styles.chatPreview}>
-          <Text style={[styles.chatMessage, item.unreadCount > 0 && styles.unreadMessage]} numberOfLines={1}>
-            {item.lastMessage}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>{item.unreadCount > 9 ? "9+" : item.unreadCount}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  )
 
-  const renderUserCard = ({ item }: { item: User & { lastMessage?: any } }) => (
-    <TouchableOpacity style={styles.card}>
-      <View style={styles.cardInfo}>
-        <UserItem user={item} />
-        <Text style={styles.lastMessage} numberOfLines={1}>
-          {item.lastMessage?.content || "No messages yet."}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  )
+        <View style={styles.chatInfo}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.username}>@{item.username}</Text>
+          </View>
 
-  const renderActionButtons = () => (
-    <View style={styles.actionButtons}>
-      <TouchableOpacity style={styles.actionButton}>
-        <View style={styles.actionButtonIcon}>
-          <Ionicons name="person" size={24} color={COLORS.text} />
+          <View style={styles.messagePreview}>
+            <Text style={styles.messageText} numberOfLines={1}>
+              Start a conversation
+            </Text>
+          </View>
         </View>
-        <Text style={styles.actionButtonText}>Find People</Text>
       </TouchableOpacity>
+    )
+  }
 
-      <TouchableOpacity style={styles.actionButton}>
-        <View style={styles.actionButtonIcon}>
-          <Ionicons name="mail" size={24} color={COLORS.text} />
-        </View>
-        <Text style={styles.actionButtonText}>Invite Friends</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.actionButton}>
-        <View style={styles.actionButtonIcon}>
-          <Ionicons name="people" size={24} color={COLORS.text} />
-        </View>
-        <Text style={styles.actionButtonText}>Join Groups</Text>
-      </TouchableOpacity>
-    </View>
-  )
-
-  return (
-    <SafeAreaView style={styles.container}>
-      {renderActionButtons()}
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={chats}
-          renderItem={renderChatItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.chatList}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No conversations yet</Text>
-              <TouchableOpacity style={styles.startChatButton} onPress={() => router.push("/SearchScreen")}>
-                <Text style={styles.startChatButtonText}>Find people to chat with</Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
-      )}
-
-      {loadingFollows ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      ) : followedUsers.length === 0 ? (
+  const renderEmptyState = () => {
+    if (loading) {
+      return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="people-outline" size={64} color={COLORS.primary} style={{ marginBottom: 16 }} />
-          <Text style={styles.emptyText}>You're not following anyone yet!</Text>
-          <Text style={styles.emptySubText}>Start following people to see them here and chat with them.</Text>
-          <TouchableOpacity style={styles.startChatButton} onPress={() => router.push("/SearchScreen")}>
-            <Text style={styles.startChatButtonText}>Find people to follow</Text>
+          <ActivityIndicator size="large" color="#9333EA" />
+          <Text style={styles.emptyTitle}>Loading users...</Text>
+        </View>
+      )
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="people-outline" size={64} color="#9CA3AF" />
+          <Text style={styles.emptyTitle}>No users found</Text>
+          <Text style={styles.emptySubtitle}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={styles.searchActionButton}
+            onPress={() => router.push("/SearchScreen")}
+          >
+            <Text style={styles.searchButtonText}>Search for People</Text>
           </TouchableOpacity>
         </View>
-      ) : (
-        <FlatList
-          data={followedUsers}
-          renderItem={renderUserCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.chatList}
-        />
-      )}
-    </SafeAreaView>
+      )
+    }
+
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="people-outline" size={64} color="#9CA3AF" />
+        <Text style={styles.emptyTitle}>No users found</Text>
+        <Text style={styles.emptySubtitle}>
+          Search for people to start chatting with them
+        </Text>
+        <TouchableOpacity
+          style={styles.searchActionButton}
+          onPress={() => router.push("/SearchScreen")}
+        >
+          <Text style={styles.searchButtonText}>Search for People</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>All Users</Text>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => router.push("/SearchScreen")}
+        >
+          <Ionicons name="search" size={24} color="#9333EA" />
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={chatUsers}
+        renderItem={renderChatItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.chatList}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#9333EA"
+            colors={["#9333EA"]}
+          />
+        }
+        ListEmptyComponent={renderEmptyState()}
+      />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#000",
   },
-  actionButtons: {
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 15,
-  },
-  actionButton: {
     alignItems: "center",
-    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1F2937",
   },
-  actionButtonIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 5,
+  headerTitle: {
+    color: "white",
+    fontSize: 28,
+    fontWeight: "bold",
   },
-  actionButtonText: {
-    color: COLORS.text,
-    fontSize: 12,
+  searchButton: {
+    padding: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+  loadingText: {
+    color: "#9CA3AF",
+    fontSize: 16,
+    marginTop: 16,
+  },
   chatList: {
-    paddingHorizontal: 15,
+    flexGrow: 1,
   },
   chatItem: {
     flexDirection: "row",
-    paddingVertical: 15,
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: "#1F2937",
+  },
+  avatarContainer: {
+    position: "relative",
+    marginRight: 16,
   },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#cccccc",
+    backgroundColor: "#374151",
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#22C55E",
+    borderWidth: 2,
+    borderColor: "#000",
   },
   chatInfo: {
     flex: 1,
-    marginLeft: 15,
-    justifyContent: "center",
   },
   chatHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  chatName: {
-    color: COLORS.text,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  chatTime: {
-    color: COLORS.textSecondary,
-    fontSize: 12,
-  },
-  chatPreview: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-  },
-  chatMessage: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    flex: 1,
-  },
-  unreadMessage: {
-    color: COLORS.text,
-    fontWeight: "500",
-  },
-  unreadBadge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 10,
-  },
-  unreadCount: {
-    color: COLORS.text,
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  emptyContainer: {
-    padding: 30,
-    alignItems: "center",
-  },
-  emptyText: {
-    color: COLORS.textSecondary,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  startChatButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  startChatButtonText: {
-    color: COLORS.text,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  userItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border || "#1F2937",
-    paddingHorizontal: 20,
-  },
-  userInfo: {
-    flex: 1,
+    marginBottom: 4,
   },
   userName: {
-    color: COLORS.text || "white",
+    color: "white",
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 2,
+    marginRight: 8,
   },
-  userHandle: {
+  username: {
     color: "#9CA3AF",
     fontSize: 14,
   },
-  emptySubText: {
+  messagePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  messageText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingTop: 100,
+  },
+  emptyTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "600",
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptySubtitle: {
     color: "#9CA3AF",
     fontSize: 16,
     textAlign: "center",
-    marginBottom: 20,
+    lineHeight: 24,
+    marginBottom: 24,
   },
-  card: {
-    backgroundColor: "#1e1e1e",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    flexDirection: "column",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
+  searchActionButton: {
+    backgroundColor: "#9333EA",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
-  cardInfo: {
-    flexDirection: "column",
-  },
-  lastMessage: {
-    color: "#a0a0a0",
-    fontSize: 14,
-    marginTop: 8,
+  searchButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
 })
 

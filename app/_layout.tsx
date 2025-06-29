@@ -1,11 +1,15 @@
 import { Stack } from "expo-router";
-import './globals.css';
 import { ClerkProvider } from "@clerk/clerk-expo";
 import * as SecureStore from 'expo-secure-store';
 import { UserProvider } from "@/context/userContext"
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { SupabaseProvider } from "@/context/SupabaseContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { LogBox } from 'react-native';
+
+// Ignore FontFaceObserver warnings
+LogBox.ignoreLogs(['FontFaceObserver']);
 
 // Clerk token cache
 const tokenCache = {
@@ -30,15 +34,17 @@ export default function RootLayout() {
     <ClerkProvider publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache} >
       <SafeAreaProvider>
         <ThemeProvider>
-          <UserProvider>
-            <SocketProvider>
-              <Stack>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                <Stack.Screen name="(root)" options={{ headerShown: false }} />
-              </Stack>
-            </SocketProvider>
-          </UserProvider>
+          <SupabaseProvider>
+            <UserProvider>
+              <SocketProvider>
+                <Stack>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                  <Stack.Screen name="(root)" options={{ headerShown: false }} />
+                </Stack>
+              </SocketProvider>
+            </UserProvider>
+          </SupabaseProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </ClerkProvider>
